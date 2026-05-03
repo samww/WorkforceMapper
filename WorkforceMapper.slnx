@@ -4,4 +4,5 @@
     <Deploy />
   </Project>
   <Project Path="WorkforceMapper.Server/WorkforceMapper.Server.csproj" />
+  <Project Path="WorkforceMapper.Tests/WorkforceMapper.Tests.csproj" />
 </Solution>
