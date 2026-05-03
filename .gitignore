@@ -36,4 +36,5 @@ npm-debug.log*
 
 # other exemptions
 docs/background
+docs/temp
 .claude

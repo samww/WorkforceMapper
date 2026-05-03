@@ -1,16 +1,14 @@
 # Workforce Mapper
 
-An ASP.NET Core + React application for workforce capacity data maintenance, with an AI layer for mapping suggestions and natural language capacity reporting.
+An ASP.NET Core + React application for workforce capacity data maintenance, with an AI layer for natural language capacity reporting.
 
-Upload a headcount extract (employees, contractors, and vendor resources with monthly rates), map resources to project and application activities, and ask plain English questions about capacity utilisation, monthly cost, product attribution, and run/change split. Claude handles both — suggesting mappings on upload and answering capacity and cost questions via tool-use.
+Pre-loaded with 80 resources (employees, contractors, and vendor staff across 4 divisions), mapped to 33 activities — ready to query immediately. Map resources to project and application activities, and ask plain English questions about capacity utilisation, monthly cost, product attribution, and run/change split.
 
 Companion project to [product-portfolio-rag](https://github.com/samww/product-portfolio-rag): both use the same fictional company (Pragmenta Insights). The workforce allocations here are the operational source behind the application cost figures in that project.
 
 ## What it does
 
-**Excel upload + ETL** — drag-and-drop a `.xlsx` headcount file covering employees, contractors, and vendor resources (with monthly rates and month flags); preview new/updated/unchanged counts before committing.
-
-**AI mapping suggestions** — after upload, Claude reviews each resource's role type, seniority, resource type, and division and suggests which activities to map them to, with confidence scores and reasoning. Suggestions never auto-apply — the user accepts, rejects, or edits.
+**Pre-loaded data** — Pre-loaded with 80 resources (employees, contractors, and vendor staff across 4 divisions), mapped to 33 activities — ready to query immediately.
 
 **Mapping UI** — per-resource cards with inline allocation editing. Division filter, unallocated filter, over-allocation highlighted in red.
 
