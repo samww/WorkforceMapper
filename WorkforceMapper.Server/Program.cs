@@ -18,7 +18,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<WorkforceDbContext>();
     await db.Database.MigrateAsync();
 
-    if (!await db.Resources.AnyAsync())
+    if (!app.Environment.IsEnvironment("Testing") && !await db.Resources.AnyAsync())
     {
         var json = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "data", "resources.json"));
         var records = System.Text.Json.JsonSerializer.Deserialize<List<ResourceSeed>>(json,
@@ -35,7 +35,7 @@ using (var scope = app.Services.CreateScope())
         await db.SaveChangesAsync();
     }
 
-    if (!await db.Mappings.AnyAsync())
+    if (!app.Environment.IsEnvironment("Testing") && !await db.Mappings.AnyAsync())
     {
         var lookup = await db.Resources.ToDictionaryAsync(r => r.ResourceId, r => r.Id);
         var json = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "data", "mappings.json"));

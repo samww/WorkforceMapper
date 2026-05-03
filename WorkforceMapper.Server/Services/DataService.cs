@@ -6,6 +6,13 @@ namespace WorkforceMapper.Server.Services;
 
 public class DataService(WorkforceDbContext context)
 {
+    public async Task<(int ResourceCount, int MappingCount)> GetHealthAsync()
+    {
+        var resourceCount = await context.Resources.CountAsync();
+        var mappingCount = await context.Mappings.CountAsync();
+        return (resourceCount, mappingCount);
+    }
+
     public async Task<List<Resource>> GetResourcesAsync(string? division = null, string? month = null)
     {
         var query = context.Resources
