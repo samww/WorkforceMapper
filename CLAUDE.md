@@ -1,29 +1,32 @@
 # WorkforceMapper
 
-## Agent skills
+## Domain docs
 
-### Issue tracker
+Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, all five tool signatures, key constraints, and tech stack.
 
-Issues live in GitHub Issues (`samww/WorkforceMapper`). See `docs/agents/issue-tracker.md`.
+Only read deeper docs when directly relevant to the issue being worked on:
 
-### Triage labels
+| Issue | Implementation spec | Also read |
+|---|---|---|
+| #2 DB schema + seed data | `docs/build/issue-2-data-layer.md` | — |
+| #3 Resources + Activities API | `docs/build/issue-3-resources-api.md` | `docs/build/api-contracts.md` |
+| #4 Mappings API |
+| #5 Mapping UI | `docs/build/issue-5-mapping-ui.md` | `docs/build/api-contracts.md` |
+| #6 Chat API | `docs/build/issue-6-chat-api.md` | `docs/build/api-contracts.md` |
+| #7 Chat UI | `docs/build/issue-7-chat-ui.md` | `docs/build/api-contracts.md` |
+| #8 Docker + Azure deployment | `docs/build/issue-8-deployment.md` | — |
+| #9 README + CLAUDE.md | `docs/build/issue-9-documentation.md` | — |
 
-Uses the default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+Additional docs (only when needed):
+- `docs/build/db-schema.md` — cost attribution chain, key constraints (issues #2–#4)
+- `docs/build/synthetic-data-spec.md` — seed data rate tables and scenario values (only when regenerating `data/*.json` files from scratch)
+- `docs/build/agent-system-prompt.md` — verbatim AgentService system prompt (issue #6 only)
+- `docs/adr/decisions.md` — ADR 1 (SQLite), ADR 3 (tool-use), ADR 4 (C#/.NET), ADR 5 (advisory constraint)
 
-### Domain docs
+Use the glossary vocabulary from `CONTEXT.md` when referring to domain concepts. If a planned implementation conflicts with an ADR, flag it before proceeding.
 
-Single-context repo: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+## Issue management
 
-## Architecture notes
-
-- Resources and mappings are seeded from `data/resources.json` and `data/mappings.json` at startup (if tables are empty). Taxonomy (applications, products, projects, activities) is seeded via EF Core `HasData()` migrations.
-- All backend endpoints are implemented as Controller classes under `WorkforceMapper.Server/Controllers/` using `[ApiController]` / `[Route]` attributes. Do not add inline route handlers in `Program.cs`.
-- There is no Excel upload feature, no ClosedXML dependency, no UploadService, and no SuggestionService.
-- The frontend (`workforcemapper.client`) is a two-panel layout: `MappingView` (left) + `ChatPanel` (right). No UploadPanel, no SuggestionDrawer.
-
-## Build reference
-
-Before writing any code, read:
-- `docs/build/build-plan.md` — full feature spec: data model, API contracts, tool signatures, system prompt, frontend architecture
-- `docs/build/db-schema.md` — ERD, cost model rules, key constraints
-- `docs/adr/decisions.md` — architecture decisions (SQLite, advisory allocation constraint, tool-use over NL-to-SQL, etc.)
+Only read these when performing triage or issue-management tasks (not when writing code):
+- `docs/agents/issue-tracker.md` — GitHub CLI conventions
+- `docs/agents/triage-labels.md` — label vocabulary
