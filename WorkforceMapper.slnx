@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="workforcemapper.client/workforcemapper.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="WorkforceMapper.Server/WorkforceMapper.Server.csproj" />
+</Solution>

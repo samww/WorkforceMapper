@@ -1,0 +1,6 @@
+@WorkforceMapper.Server_HostAddress = http://localhost:5091
+
+GET {{WorkforceMapper.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

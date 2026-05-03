@@ -1,0 +1,39 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build output
+**/bin/
+**/obj/
+
+# ASP.NET
+**/wwwroot/dist/
+
+# Node / Vite
+workforcemapper.client/node_modules/
+workforcemapper.client/dist/
+workforcemapper.client/.vite/
+
+# Dev certs
+*.pem
+*.key
+
+# Environment / secrets
+appsettings.Development.json
+*.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# other exemptions
+docs/background
+.claude
