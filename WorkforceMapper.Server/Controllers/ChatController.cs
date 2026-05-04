@@ -20,7 +20,7 @@ public class ChatController(AgentService agent) : ControllerBase
             req.Month ?? Constants.DefaultMonth,
             async token =>
             {
-                await Response.WriteAsync($"data: {token}\n\n", ct);
+                await Response.WriteAsync($"data: {System.Text.Json.JsonSerializer.Serialize(token)}\n\n", ct);
                 await Response.Body.FlushAsync(ct);
             },
             ct);

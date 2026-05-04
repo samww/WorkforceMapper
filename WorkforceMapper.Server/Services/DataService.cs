@@ -76,8 +76,8 @@ public class DataService(WorkforceDbContext context)
             .ToList();
     }
 
-    public async Task<List<AllocationResult>> GetActivityAllocationsAsync(
-        int? activityId, string? division, string? activityType, string month)
+    public async Task<ActivityAllocationsResult> GetActivityAllocationsAsync(
+        int? activityId, string? division, string? activityType, string? activityName, string month)
     {
         var resources = await context.Resources
             .Include(r => r.Mappings)
@@ -96,8 +96,10 @@ public class DataService(WorkforceDbContext context)
             pairs = pairs.Where(x => x.Mapping.ActivityId == activityId.Value);
         if (activityType != null)
             pairs = pairs.Where(x => x.Mapping.Activity.ActivityType == activityType);
+        if (activityName != null)
+            pairs = pairs.Where(x => x.Mapping.Activity.Name.Contains(activityName, StringComparison.OrdinalIgnoreCase));
 
-        return pairs.Select(x => new AllocationResult(
+        var rows = pairs.Select(x => new AllocationResult(
             x.Mapping.ActivityId,
             x.Mapping.Activity.Name,
             x.Mapping.Activity.ActivityType,
@@ -107,9 +109,15 @@ public class DataService(WorkforceDbContext context)
             x.Mapping.Percent,
             x.Resource.MonthlyRate * x.Mapping.Percent / 100m
         )).ToList();
+
+        return new ActivityAllocationsResult(
+            rows.Select(r => r.ResourceDbId).Distinct().Count(),
+            rows.Sum(r => r.ImpliedMonthlyCost),
+            rows
+        );
     }
 
-    public async Task<List<UnallocatedResult>> GetUnallocatedResourcesAsync(
+    public async Task<UnallocatedResourcesResult> GetUnallocatedResourcesAsync(
         int thresholdPct, string? division, string? month)
     {
         var m = month ?? Constants.DefaultMonth;
@@ -117,7 +125,7 @@ public class DataService(WorkforceDbContext context)
             .Include(r => r.Mappings)
             .ToListAsync();
 
-        return resources
+        var rows = resources
             .Where(r => GetMonthFlag(r, m) == 1)
             .Where(r => division == null || r.Division == division)
             .Select(r =>
@@ -129,9 +137,22 @@ public class DataService(WorkforceDbContext context)
             })
             .Where(r => r.AllocationPct < thresholdPct)
             .ToList();
+
+        var divisionGroups = rows
+            .GroupBy(r => r.Division)
+            .Select(g => new UnallocatedDivisionGroup(
+                g.Key,
+                g.Count(),
+                g.Sum(r => r.IdleMonthlyCost),
+                g.ToList()))
+            .ToList();
+
+        return new UnallocatedResourcesResult(
+            divisionGroups.Sum(d => d.TotalIdleMonthlyCost),
+            divisionGroups);
     }
 
-    public async Task<List<ProductCostResult>> GetCostByProductAsync(string month)
+    public async Task<ProductCostSummary> GetCostByProductAsync(string month)
     {
         var mappings = await context.Mappings
             .Where(m => m.Month == month)
@@ -148,8 +169,9 @@ public class DataService(WorkforceDbContext context)
 
         var productCosts = new Dictionary<int, (string Name, decimal ArrUsd, decimal Cost)>();
         var unattributedCost = 0m;
+        var activeMappings = mappings.Where(m => GetMonthFlag(m.Resource, month) == 1).ToList();
 
-        foreach (var mapping in mappings.Where(m => GetMonthFlag(m.Resource, month) == 1))
+        foreach (var mapping in activeMappings)
         {
             var cost = mapping.Resource.MonthlyRate * mapping.Percent / 100m;
             var activity = mapping.Activity;
@@ -160,8 +182,11 @@ public class DataService(WorkforceDbContext context)
                 if (products.Count == 0)
                     unattributedCost += cost;
                 else
+                {
+                    var share = cost / products.Count;
                     foreach (var product in products)
-                        AddCost(productCosts, product.Id, product.Name, product.ArrUsd, cost);
+                        AddCost(productCosts, product.Id, product.Name, product.ArrUsd, share);
+                }
             }
             else if (activity.Project is { } project)
             {
@@ -169,8 +194,11 @@ public class DataService(WorkforceDbContext context)
                 if (products.Count == 0)
                     unattributedCost += cost;
                 else
+                {
+                    var share = cost / products.Count;
                     foreach (var product in products)
-                        AddCost(productCosts, product.Id, product.Name, product.ArrUsd, cost);
+                        AddCost(productCosts, product.Id, product.Name, product.ArrUsd, share);
+                }
             }
             else
             {
@@ -186,7 +214,12 @@ public class DataService(WorkforceDbContext context)
         if (unattributedCost > 0)
             results.Add(new ProductCostResult(null, "Unattributed", 0m, unattributedCost));
 
-        return results;
+        var totalPayroll = (await context.Resources.ToListAsync())
+            .Where(r => GetMonthFlag(r, month) == 1)
+            .Sum(r => r.MonthlyRate);
+        var totalMappedCost = activeMappings.Sum(m => m.Resource.MonthlyRate * m.Percent / 100m);
+
+        return new ProductCostSummary(totalPayroll, totalMappedCost, results);
     }
 
     public async Task<List<OverallocatedResult>> GetOverallocatedResourcesAsync(

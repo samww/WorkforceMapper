@@ -49,7 +49,7 @@ Default month: **`2026-05`**. Hardcode as a constant throughout.
 
 ## Tech Stack
 
-- **Backend:** ASP.NET Core (.NET 10), C#, EF Core + SQLite, `Anthropic.SDK` (`claude-sonnet-4-6`)
+- **Backend:** ASP.NET Core (.NET 10), C#, EF Core + SQLite, `Anthropic.SDK` (`claude-haiku-4-5-20251001`)
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Vitest + RTL
 - **Hosting:** Azure Container Apps, Azure AD Easy Auth, Docker multi-stage (Node 22 → .NET 10)
 

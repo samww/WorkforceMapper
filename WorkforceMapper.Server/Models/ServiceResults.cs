@@ -21,6 +21,12 @@ public record AllocationResult(
     decimal ImpliedMonthlyCost
 );
 
+public record ActivityAllocationsResult(
+    int ResourceCount,
+    decimal TotalMonthlyCost,
+    List<AllocationResult> Allocations
+);
+
 public record UnallocatedResult(
     string ResourceId,
     string ResourceName,
@@ -31,11 +37,29 @@ public record UnallocatedResult(
     decimal IdleMonthlyCost
 );
 
+public record UnallocatedDivisionGroup(
+    string Division,
+    int ResourceCount,
+    decimal TotalIdleMonthlyCost,
+    List<UnallocatedResult> Resources
+);
+
+public record UnallocatedResourcesResult(
+    decimal TotalIdleMonthlyCost,
+    List<UnallocatedDivisionGroup> Divisions
+);
+
 public record ProductCostResult(
     int? ProductId,
     string ProductName,
     decimal ArrUsd,
     decimal TotalAllocatedCost
+);
+
+public record ProductCostSummary(
+    decimal TotalPayroll,
+    decimal TotalMappedCost,
+    List<ProductCostResult> Products
 );
 
 public record OverallocatedResult(
