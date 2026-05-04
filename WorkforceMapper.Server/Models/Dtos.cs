@@ -20,3 +20,5 @@ public record ResourceDto(
 public record ActivityDto(int id, string name, string activity_type, string division, string parent_name);
 
 public record UpsertMappingRequest(int resource_id, int activity_id, string month, decimal percent);
+
+public record ChatRequest(string Query, string? Month);

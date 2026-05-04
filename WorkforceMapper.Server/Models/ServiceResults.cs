@@ -37,3 +37,13 @@ public record ProductCostResult(
     decimal ArrUsd,
     decimal TotalAllocatedCost
 );
+
+public record OverallocatedResult(
+    string ResourceId,
+    string Name,
+    string Company,
+    string ResourceType,
+    string Division,
+    decimal AllocationPct,
+    decimal OverallocationPct
+);

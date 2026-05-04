@@ -1,3 +1,4 @@
+using Anthropic.SDK;
 using Microsoft.EntityFrameworkCore;
 using WorkforceMapper.Server.Data;
 using WorkforceMapper.Server.Models;
@@ -10,6 +11,10 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<WorkforceDbContext>(o =>
     o.UseSqlite("Data Source=workforce.db"));
 builder.Services.AddScoped<DataService>();
+builder.Services.AddSingleton(_ =>
+    new AnthropicClient(builder.Configuration["ANTHROPIC_API_KEY"]!));
+builder.Services.AddSingleton<IClaudeClient, AnthropicClaudeClient>();
+builder.Services.AddScoped<AgentService>();
 
 var app = builder.Build();
 

@@ -189,6 +189,28 @@ public class DataService(WorkforceDbContext context)
         return results;
     }
 
+    public async Task<List<OverallocatedResult>> GetOverallocatedResourcesAsync(
+        string? division, int thresholdPct, string? month)
+    {
+        var m = month ?? Constants.DefaultMonth;
+        var resources = await context.Resources
+            .Include(r => r.Mappings)
+            .ToListAsync();
+
+        return resources
+            .Where(r => GetMonthFlag(r, m) == 1)
+            .Where(r => division == null || r.Division == division)
+            .Select(r =>
+            {
+                var totalPct = r.Mappings.Where(mapping => mapping.Month == m).Sum(mapping => mapping.Percent);
+                return new OverallocatedResult(
+                    r.ResourceId, r.Name, r.Company, r.ResourceType, r.Division,
+                    totalPct, totalPct - thresholdPct);
+            })
+            .Where(r => r.AllocationPct > thresholdPct)
+            .ToList();
+    }
+
     public async Task UpsertMappingAsync(int resourceId, int activityId, string month, decimal percent)
     {
         var existing = await context.Mappings.FindAsync(resourceId, activityId, month);
