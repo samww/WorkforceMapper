@@ -11,7 +11,7 @@ Pragmenta Insights workforce capacity tool. Resources (employees, contractors, v
 | Term | Definition |
 |---|---|
 | **resource** | A person or vendor slot with a `monthly_rate` and per-month active flags (`jan`–`dec`). Active flag `0` means zero cost regardless of mappings. |
-| **activity** | A unit of work: `Application Support`, `Application Minor Changes`, or `Project Changes`. Belongs to either an application or a project (not both). |
+| **activity** | A unit of work with `activity_type` of `Support`, `Minor Changes`, or `Project`. Belongs to either an application or a project (not both). Named `"X - Y"` where X is the application name or `"P{nn} ProjectName"` and Y is the type. |
 | **mapping** | A resource allocated to an activity at `percent` for a given `month`. Composite PK: `(resource_id, activity_id, month)`. |
 | **allocation_pct** | Sum of mapping percents for a division's **active** resources ÷ (active_resource_count × 100). Denominator is active headcount only — inactive resources do not dilute it. Values > 100% are a valid operational state (over-allocation). |
 | **idle_monthly_cost** | `monthly_rate × ((100 − total_allocation_pct) / 100)` — the cost of unmapped time, not the full rate. |
@@ -29,7 +29,7 @@ resources ──< mappings >── activities ──> applications ──< produ
 ```
 
 - **resources** — 80 seeded from `data/resources.json`; 4 divisions: Platform Engineering (23), Analytics (24), Data Collection (20), Client Services (13)
-- **activities** — 33 seeded via EF `HasData()` from `data/taxonomy.json`; each belongs to one application OR one project
+- **activities** — 48 seeded via EF `HasData()` from `data/taxonomy.json`; each belongs to one application OR one project; all 18 applications have both Support and Minor Changes; projects prefixed P01–P12
 - **mappings** — seeded from `data/mappings.json`; every active resource in `2026-05` sums to exactly 100%
 - **products** — 7; $28.9m total ARR; all 7 transitively depend on AuthService
 - **applications** — 18; **projects** — 12; join tables: `product_applications` (26), `project_products` (26)
