@@ -67,18 +67,18 @@
   ],
 
   "projects": [
-    { "id": 1,  "name": "CoreDataWarehouse Cloud Migration" },
-    { "id": 2,  "name": "AuthService Replacement" },
-    { "id": 3,  "name": "Security & Compliance Programme" },
-    { "id": 4,  "name": "DevPortal Rebuild" },
-    { "id": 5,  "name": "ML Forecasting Platform" },
-    { "id": 6,  "name": "Real-Time Analytics Initiative" },
-    { "id": 7,  "name": "SegmentBuilder Enhancement" },
-    { "id": 8,  "name": "CallCentre Suite Replacement" },
-    { "id": 9,  "name": "DiaryTracker Mobile Rewrite" },
-    { "id": 10, "name": "Panel Automation Programme" },
-    { "id": 11, "name": "Client Onboarding Automation" },
-    { "id": 12, "name": "API Delivery Programme" }
+    { "id": 1,  "name": "P01 CoreDataWarehouse Cloud Migration" },
+    { "id": 2,  "name": "P02 AuthService Replacement" },
+    { "id": 3,  "name": "P03 Security & Compliance Programme" },
+    { "id": 4,  "name": "P04 DevPortal Rebuild" },
+    { "id": 5,  "name": "P05 ML Forecasting Platform" },
+    { "id": 6,  "name": "P06 Real-Time Analytics Initiative" },
+    { "id": 7,  "name": "P07 SegmentBuilder Enhancement" },
+    { "id": 8,  "name": "P08 CallCentre Suite Replacement" },
+    { "id": 9,  "name": "P09 DiaryTracker Mobile Rewrite" },
+    { "id": 10, "name": "P10 Panel Automation Programme" },
+    { "id": 11, "name": "P11 Client Onboarding Automation" },
+    { "id": 12, "name": "P12 API Delivery Programme" }
   ],
 
   "project_products": [
@@ -127,269 +127,53 @@
   ],
 
   "activities": [
-    {
-      "id": 1,
-      "name": "CoreDataWarehouse — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 1,
-      "project_id": null,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 2,
-      "name": "CoreDataWarehouse — Application Minor Changes",
-      "activity_type": "Application Minor Changes",
-      "application_id": 1,
-      "project_id": null,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 3,
-      "name": "APIGateway — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 2,
-      "project_id": null,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 4,
-      "name": "SurveyEngine — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 3,
-      "project_id": null,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 5,
-      "name": "AuthService — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 4,
-      "project_id": null,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 6,
-      "name": "ObservabilityStack — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 5,
-      "project_id": null,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 7,
-      "name": "CoreDataWarehouse Cloud Migration",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 1,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 8,
-      "name": "AuthService Replacement",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 2,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 9,
-      "name": "Security & Compliance Programme",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 3,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 10,
-      "name": "DevPortal Rebuild",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 4,
-      "division": "Platform Engineering"
-    },
-    {
-      "id": 11,
-      "name": "InsightHub — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 6,
-      "project_id": null,
-      "division": "Analytics"
-    },
-    {
-      "id": 12,
-      "name": "InsightHub — Application Minor Changes",
-      "activity_type": "Application Minor Changes",
-      "application_id": 6,
-      "project_id": null,
-      "division": "Analytics"
-    },
-    {
-      "id": 13,
-      "name": "DataMapper — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 7,
-      "project_id": null,
-      "division": "Analytics"
-    },
-    {
-      "id": 14,
-      "name": "QuotaManager — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 8,
-      "project_id": null,
-      "division": "Analytics"
-    },
-    {
-      "id": 15,
-      "name": "SegmentBuilder — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 9,
-      "project_id": null,
-      "division": "Analytics"
-    },
-    {
-      "id": 16,
-      "name": "PanelIQ — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 18,
-      "project_id": null,
-      "division": "Analytics"
-    },
-    {
-      "id": 17,
-      "name": "ML Forecasting Platform",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 5,
-      "division": "Analytics"
-    },
-    {
-      "id": 18,
-      "name": "Real-Time Analytics Initiative",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 6,
-      "division": "Analytics"
-    },
-    {
-      "id": 19,
-      "name": "SegmentBuilder Enhancement",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 7,
-      "division": "Analytics"
-    },
-    {
-      "id": 20,
-      "name": "FieldOps — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 10,
-      "project_id": null,
-      "division": "Data Collection"
-    },
-    {
-      "id": 21,
-      "name": "WebCollect — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 11,
-      "project_id": null,
-      "division": "Data Collection"
-    },
-    {
-      "id": 22,
-      "name": "SampleRouter — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 12,
-      "project_id": null,
-      "division": "Data Collection"
-    },
-    {
-      "id": 23,
-      "name": "CallCentre Suite — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 13,
-      "project_id": null,
-      "division": "Data Collection"
-    },
-    {
-      "id": 24,
-      "name": "DiaryTracker — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 14,
-      "project_id": null,
-      "division": "Data Collection"
-    },
-    {
-      "id": 25,
-      "name": "CallCentre Suite Replacement",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 8,
-      "division": "Data Collection"
-    },
-    {
-      "id": 26,
-      "name": "DiaryTracker Mobile Rewrite",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 9,
-      "division": "Data Collection"
-    },
-    {
-      "id": 27,
-      "name": "Panel Automation Programme",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 10,
-      "division": "Data Collection"
-    },
-    {
-      "id": 28,
-      "name": "ClientPortal — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 15,
-      "project_id": null,
-      "division": "Client Services"
-    },
-    {
-      "id": 29,
-      "name": "ReportFactory — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 16,
-      "project_id": null,
-      "division": "Client Services"
-    },
-    {
-      "id": 30,
-      "name": "ReportFactory — Application Minor Changes",
-      "activity_type": "Application Minor Changes",
-      "application_id": 16,
-      "project_id": null,
-      "division": "Client Services"
-    },
-    {
-      "id": 31,
-      "name": "DeliveryTracker — Application Support",
-      "activity_type": "Application Support",
-      "application_id": 17,
-      "project_id": null,
-      "division": "Client Services"
-    },
-    {
-      "id": 32,
-      "name": "Client Onboarding Automation",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 11,
-      "division": "Client Services"
-    },
-    {
-      "id": 33,
-      "name": "API Delivery Programme",
-      "activity_type": "Project Changes",
-      "application_id": null,
-      "project_id": 12,
-      "division": "Client Services"
-    }
+    { "id": 1,  "name": "CoreDataWarehouse - Support",                    "activity_type": "Support",        "application_id": 1,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 2,  "name": "CoreDataWarehouse - Minor Changes",              "activity_type": "Minor Changes",  "application_id": 1,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 3,  "name": "APIGateway - Support",                           "activity_type": "Support",        "application_id": 2,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 4,  "name": "SurveyEngine - Support",                         "activity_type": "Support",        "application_id": 3,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 5,  "name": "AuthService - Support",                          "activity_type": "Support",        "application_id": 4,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 6,  "name": "ObservabilityStack - Support",                   "activity_type": "Support",        "application_id": 5,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 7,  "name": "P01 CoreDataWarehouse Cloud Migration - Project", "activity_type": "Project",        "application_id": null, "project_id": 1,  "division": "Platform Engineering" },
+    { "id": 8,  "name": "P02 AuthService Replacement - Project",          "activity_type": "Project",        "application_id": null, "project_id": 2,  "division": "Platform Engineering" },
+    { "id": 9,  "name": "P03 Security & Compliance Programme - Project",  "activity_type": "Project",        "application_id": null, "project_id": 3,  "division": "Platform Engineering" },
+    { "id": 10, "name": "P04 DevPortal Rebuild - Project",                "activity_type": "Project",        "application_id": null, "project_id": 4,  "division": "Platform Engineering" },
+    { "id": 11, "name": "InsightHub - Support",                           "activity_type": "Support",        "application_id": 6,  "project_id": null, "division": "Analytics" },
+    { "id": 12, "name": "InsightHub - Minor Changes",                     "activity_type": "Minor Changes",  "application_id": 6,  "project_id": null, "division": "Analytics" },
+    { "id": 13, "name": "DataMapper - Support",                           "activity_type": "Support",        "application_id": 7,  "project_id": null, "division": "Analytics" },
+    { "id": 14, "name": "QuotaManager - Support",                         "activity_type": "Support",        "application_id": 8,  "project_id": null, "division": "Analytics" },
+    { "id": 15, "name": "SegmentBuilder - Support",                       "activity_type": "Support",        "application_id": 9,  "project_id": null, "division": "Analytics" },
+    { "id": 16, "name": "PanelIQ - Support",                              "activity_type": "Support",        "application_id": 18, "project_id": null, "division": "Analytics" },
+    { "id": 17, "name": "P05 ML Forecasting Platform - Project",          "activity_type": "Project",        "application_id": null, "project_id": 5,  "division": "Analytics" },
+    { "id": 18, "name": "P06 Real-Time Analytics Initiative - Project",   "activity_type": "Project",        "application_id": null, "project_id": 6,  "division": "Analytics" },
+    { "id": 19, "name": "P07 SegmentBuilder Enhancement - Project",       "activity_type": "Project",        "application_id": null, "project_id": 7,  "division": "Analytics" },
+    { "id": 20, "name": "FieldOps - Support",                             "activity_type": "Support",        "application_id": 10, "project_id": null, "division": "Data Collection" },
+    { "id": 21, "name": "WebCollect - Support",                           "activity_type": "Support",        "application_id": 11, "project_id": null, "division": "Data Collection" },
+    { "id": 22, "name": "SampleRouter - Support",                         "activity_type": "Support",        "application_id": 12, "project_id": null, "division": "Data Collection" },
+    { "id": 23, "name": "CallCentre Suite - Support",                     "activity_type": "Support",        "application_id": 13, "project_id": null, "division": "Data Collection" },
+    { "id": 24, "name": "DiaryTracker - Support",                         "activity_type": "Support",        "application_id": 14, "project_id": null, "division": "Data Collection" },
+    { "id": 25, "name": "P08 CallCentre Suite Replacement - Project",     "activity_type": "Project",        "application_id": null, "project_id": 8,  "division": "Data Collection" },
+    { "id": 26, "name": "P09 DiaryTracker Mobile Rewrite - Project",      "activity_type": "Project",        "application_id": null, "project_id": 9,  "division": "Data Collection" },
+    { "id": 27, "name": "P10 Panel Automation Programme - Project",       "activity_type": "Project",        "application_id": null, "project_id": 10, "division": "Data Collection" },
+    { "id": 28, "name": "ClientPortal - Support",                         "activity_type": "Support",        "application_id": 15, "project_id": null, "division": "Client Services" },
+    { "id": 29, "name": "ReportFactory - Support",                        "activity_type": "Support",        "application_id": 16, "project_id": null, "division": "Client Services" },
+    { "id": 30, "name": "ReportFactory - Minor Changes",                  "activity_type": "Minor Changes",  "application_id": 16, "project_id": null, "division": "Client Services" },
+    { "id": 31, "name": "DeliveryTracker - Support",                      "activity_type": "Support",        "application_id": 17, "project_id": null, "division": "Client Services" },
+    { "id": 32, "name": "P11 Client Onboarding Automation - Project",     "activity_type": "Project",        "application_id": null, "project_id": 11, "division": "Client Services" },
+    { "id": 33, "name": "P12 API Delivery Programme - Project",           "activity_type": "Project",        "application_id": null, "project_id": 12, "division": "Client Services" },
+    { "id": 34, "name": "APIGateway - Minor Changes",                     "activity_type": "Minor Changes",  "application_id": 2,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 35, "name": "SurveyEngine - Minor Changes",                   "activity_type": "Minor Changes",  "application_id": 3,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 36, "name": "AuthService - Minor Changes",                    "activity_type": "Minor Changes",  "application_id": 4,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 37, "name": "ObservabilityStack - Minor Changes",             "activity_type": "Minor Changes",  "application_id": 5,  "project_id": null, "division": "Platform Engineering" },
+    { "id": 38, "name": "DataMapper - Minor Changes",                     "activity_type": "Minor Changes",  "application_id": 7,  "project_id": null, "division": "Analytics" },
+    { "id": 39, "name": "QuotaManager - Minor Changes",                   "activity_type": "Minor Changes",  "application_id": 8,  "project_id": null, "division": "Analytics" },
+    { "id": 40, "name": "SegmentBuilder - Minor Changes",                 "activity_type": "Minor Changes",  "application_id": 9,  "project_id": null, "division": "Analytics" },
+    { "id": 41, "name": "PanelIQ - Minor Changes",                        "activity_type": "Minor Changes",  "application_id": 18, "project_id": null, "division": "Analytics" },
+    { "id": 42, "name": "FieldOps - Minor Changes",                       "activity_type": "Minor Changes",  "application_id": 10, "project_id": null, "division": "Data Collection" },
+    { "id": 43, "name": "WebCollect - Minor Changes",                     "activity_type": "Minor Changes",  "application_id": 11, "project_id": null, "division": "Data Collection" },
+    { "id": 44, "name": "SampleRouter - Minor Changes",                   "activity_type": "Minor Changes",  "application_id": 12, "project_id": null, "division": "Data Collection" },
+    { "id": 45, "name": "CallCentre Suite - Minor Changes",               "activity_type": "Minor Changes",  "application_id": 13, "project_id": null, "division": "Data Collection" },
+    { "id": 46, "name": "DiaryTracker - Minor Changes",                   "activity_type": "Minor Changes",  "application_id": 14, "project_id": null, "division": "Data Collection" },
+    { "id": 47, "name": "ClientPortal - Minor Changes",                   "activity_type": "Minor Changes",  "application_id": 15, "project_id": null, "division": "Client Services" },
+    { "id": 48, "name": "DeliveryTracker - Minor Changes",                "activity_type": "Minor Changes",  "application_id": 17, "project_id": null, "division": "Client Services" }
   ]
 }

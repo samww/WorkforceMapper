@@ -14,7 +14,7 @@ public class ResourcesController(DataService dataService) : ControllerBase
         var m = month ?? Constants.DefaultMonth;
         var resources = await dataService.GetResourcesAsync(division, null);
         return Ok(resources.Select(r => new ResourceDto(
-            r.ResourceId, r.Name, r.ResourceType, r.Company, r.Seniority, r.RoleType,
+            r.Id, r.ResourceId, r.Name, r.ResourceType, r.Company, r.Seniority, r.RoleType,
             r.Division, r.Country, r.MonthlyRate,
             IsActive(r, m),
             r.Mappings

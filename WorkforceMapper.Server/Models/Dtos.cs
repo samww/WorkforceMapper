@@ -3,6 +3,7 @@ namespace WorkforceMapper.Server.Models;
 public record MappingDto(int activity_id, string activity_name, decimal percent, string month);
 
 public record ResourceDto(
+    int id,
     string resource_id,
     string name,
     string resource_type,

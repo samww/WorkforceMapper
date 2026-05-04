@@ -52,266 +52,386 @@ namespace WorkforceMapper.Server.Migrations
                         new
                         {
                             Id = 1,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 1,
                             Division = "Platform Engineering",
-                            Name = "CoreDataWarehouse — Application Support"
+                            Name = "CoreDataWarehouse - Support"
                         },
                         new
                         {
                             Id = 2,
-                            ActivityType = "Application Minor Changes",
+                            ActivityType = "Minor Changes",
                             ApplicationId = 1,
                             Division = "Platform Engineering",
-                            Name = "CoreDataWarehouse — Application Minor Changes"
+                            Name = "CoreDataWarehouse - Minor Changes"
                         },
                         new
                         {
                             Id = 3,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 2,
                             Division = "Platform Engineering",
-                            Name = "APIGateway — Application Support"
+                            Name = "APIGateway - Support"
                         },
                         new
                         {
                             Id = 4,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 3,
                             Division = "Platform Engineering",
-                            Name = "SurveyEngine — Application Support"
+                            Name = "SurveyEngine - Support"
                         },
                         new
                         {
                             Id = 5,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 4,
                             Division = "Platform Engineering",
-                            Name = "AuthService — Application Support"
+                            Name = "AuthService - Support"
                         },
                         new
                         {
                             Id = 6,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 5,
                             Division = "Platform Engineering",
-                            Name = "ObservabilityStack — Application Support"
+                            Name = "ObservabilityStack - Support"
                         },
                         new
                         {
                             Id = 7,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Platform Engineering",
-                            Name = "CoreDataWarehouse Cloud Migration",
+                            Name = "P01 CoreDataWarehouse Cloud Migration - Project",
                             ProjectId = 1
                         },
                         new
                         {
                             Id = 8,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Platform Engineering",
-                            Name = "AuthService Replacement",
+                            Name = "P02 AuthService Replacement - Project",
                             ProjectId = 2
                         },
                         new
                         {
                             Id = 9,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Platform Engineering",
-                            Name = "Security & Compliance Programme",
+                            Name = "P03 Security & Compliance Programme - Project",
                             ProjectId = 3
                         },
                         new
                         {
                             Id = 10,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Platform Engineering",
-                            Name = "DevPortal Rebuild",
+                            Name = "P04 DevPortal Rebuild - Project",
                             ProjectId = 4
                         },
                         new
                         {
                             Id = 11,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 6,
                             Division = "Analytics",
-                            Name = "InsightHub — Application Support"
+                            Name = "InsightHub - Support"
                         },
                         new
                         {
                             Id = 12,
-                            ActivityType = "Application Minor Changes",
+                            ActivityType = "Minor Changes",
                             ApplicationId = 6,
                             Division = "Analytics",
-                            Name = "InsightHub — Application Minor Changes"
+                            Name = "InsightHub - Minor Changes"
                         },
                         new
                         {
                             Id = 13,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 7,
                             Division = "Analytics",
-                            Name = "DataMapper — Application Support"
+                            Name = "DataMapper - Support"
                         },
                         new
                         {
                             Id = 14,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 8,
                             Division = "Analytics",
-                            Name = "QuotaManager — Application Support"
+                            Name = "QuotaManager - Support"
                         },
                         new
                         {
                             Id = 15,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 9,
                             Division = "Analytics",
-                            Name = "SegmentBuilder — Application Support"
+                            Name = "SegmentBuilder - Support"
                         },
                         new
                         {
                             Id = 16,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 18,
                             Division = "Analytics",
-                            Name = "PanelIQ — Application Support"
+                            Name = "PanelIQ - Support"
                         },
                         new
                         {
                             Id = 17,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Analytics",
-                            Name = "ML Forecasting Platform",
+                            Name = "P05 ML Forecasting Platform - Project",
                             ProjectId = 5
                         },
                         new
                         {
                             Id = 18,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Analytics",
-                            Name = "Real-Time Analytics Initiative",
+                            Name = "P06 Real-Time Analytics Initiative - Project",
                             ProjectId = 6
                         },
                         new
                         {
                             Id = 19,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Analytics",
-                            Name = "SegmentBuilder Enhancement",
+                            Name = "P07 SegmentBuilder Enhancement - Project",
                             ProjectId = 7
                         },
                         new
                         {
                             Id = 20,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 10,
                             Division = "Data Collection",
-                            Name = "FieldOps — Application Support"
+                            Name = "FieldOps - Support"
                         },
                         new
                         {
                             Id = 21,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 11,
                             Division = "Data Collection",
-                            Name = "WebCollect — Application Support"
+                            Name = "WebCollect - Support"
                         },
                         new
                         {
                             Id = 22,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 12,
                             Division = "Data Collection",
-                            Name = "SampleRouter — Application Support"
+                            Name = "SampleRouter - Support"
                         },
                         new
                         {
                             Id = 23,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 13,
                             Division = "Data Collection",
-                            Name = "CallCentre Suite — Application Support"
+                            Name = "CallCentre Suite - Support"
                         },
                         new
                         {
                             Id = 24,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 14,
                             Division = "Data Collection",
-                            Name = "DiaryTracker — Application Support"
+                            Name = "DiaryTracker - Support"
                         },
                         new
                         {
                             Id = 25,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Data Collection",
-                            Name = "CallCentre Suite Replacement",
+                            Name = "P08 CallCentre Suite Replacement - Project",
                             ProjectId = 8
                         },
                         new
                         {
                             Id = 26,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Data Collection",
-                            Name = "DiaryTracker Mobile Rewrite",
+                            Name = "P09 DiaryTracker Mobile Rewrite - Project",
                             ProjectId = 9
                         },
                         new
                         {
                             Id = 27,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Data Collection",
-                            Name = "Panel Automation Programme",
+                            Name = "P10 Panel Automation Programme - Project",
                             ProjectId = 10
                         },
                         new
                         {
                             Id = 28,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 15,
                             Division = "Client Services",
-                            Name = "ClientPortal — Application Support"
+                            Name = "ClientPortal - Support"
                         },
                         new
                         {
                             Id = 29,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 16,
                             Division = "Client Services",
-                            Name = "ReportFactory — Application Support"
+                            Name = "ReportFactory - Support"
                         },
                         new
                         {
                             Id = 30,
-                            ActivityType = "Application Minor Changes",
+                            ActivityType = "Minor Changes",
                             ApplicationId = 16,
                             Division = "Client Services",
-                            Name = "ReportFactory — Application Minor Changes"
+                            Name = "ReportFactory - Minor Changes"
                         },
                         new
                         {
                             Id = 31,
-                            ActivityType = "Application Support",
+                            ActivityType = "Support",
                             ApplicationId = 17,
                             Division = "Client Services",
-                            Name = "DeliveryTracker — Application Support"
+                            Name = "DeliveryTracker - Support"
                         },
                         new
                         {
                             Id = 32,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Client Services",
-                            Name = "Client Onboarding Automation",
+                            Name = "P11 Client Onboarding Automation - Project",
                             ProjectId = 11
                         },
                         new
                         {
                             Id = 33,
-                            ActivityType = "Project Changes",
+                            ActivityType = "Project",
                             Division = "Client Services",
-                            Name = "API Delivery Programme",
+                            Name = "P12 API Delivery Programme - Project",
                             ProjectId = 12
+                        },
+                        new
+                        {
+                            Id = 34,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 2,
+                            Division = "Platform Engineering",
+                            Name = "APIGateway - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 3,
+                            Division = "Platform Engineering",
+                            Name = "SurveyEngine - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 4,
+                            Division = "Platform Engineering",
+                            Name = "AuthService - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 5,
+                            Division = "Platform Engineering",
+                            Name = "ObservabilityStack - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 7,
+                            Division = "Analytics",
+                            Name = "DataMapper - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 8,
+                            Division = "Analytics",
+                            Name = "QuotaManager - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 9,
+                            Division = "Analytics",
+                            Name = "SegmentBuilder - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 41,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 18,
+                            Division = "Analytics",
+                            Name = "PanelIQ - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 42,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 10,
+                            Division = "Data Collection",
+                            Name = "FieldOps - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 43,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 11,
+                            Division = "Data Collection",
+                            Name = "WebCollect - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 12,
+                            Division = "Data Collection",
+                            Name = "SampleRouter - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 45,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 13,
+                            Division = "Data Collection",
+                            Name = "CallCentre Suite - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 46,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 14,
+                            Division = "Data Collection",
+                            Name = "DiaryTracker - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 15,
+                            Division = "Client Services",
+                            Name = "ClientPortal - Minor Changes"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            ActivityType = "Minor Changes",
+                            ApplicationId = 17,
+                            Division = "Client Services",
+                            Name = "DeliveryTracker - Minor Changes"
                         });
                 });
 
@@ -675,62 +795,62 @@ namespace WorkforceMapper.Server.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "CoreDataWarehouse Cloud Migration"
+                            Name = "P01 CoreDataWarehouse Cloud Migration"
                         },
                         new
                         {
                             Id = 2,
-                            Name = "AuthService Replacement"
+                            Name = "P02 AuthService Replacement"
                         },
                         new
                         {
                             Id = 3,
-                            Name = "Security & Compliance Programme"
+                            Name = "P03 Security & Compliance Programme"
                         },
                         new
                         {
                             Id = 4,
-                            Name = "DevPortal Rebuild"
+                            Name = "P04 DevPortal Rebuild"
                         },
                         new
                         {
                             Id = 5,
-                            Name = "ML Forecasting Platform"
+                            Name = "P05 ML Forecasting Platform"
                         },
                         new
                         {
                             Id = 6,
-                            Name = "Real-Time Analytics Initiative"
+                            Name = "P06 Real-Time Analytics Initiative"
                         },
                         new
                         {
                             Id = 7,
-                            Name = "SegmentBuilder Enhancement"
+                            Name = "P07 SegmentBuilder Enhancement"
                         },
                         new
                         {
                             Id = 8,
-                            Name = "CallCentre Suite Replacement"
+                            Name = "P08 CallCentre Suite Replacement"
                         },
                         new
                         {
                             Id = 9,
-                            Name = "DiaryTracker Mobile Rewrite"
+                            Name = "P09 DiaryTracker Mobile Rewrite"
                         },
                         new
                         {
                             Id = 10,
-                            Name = "Panel Automation Programme"
+                            Name = "P10 Panel Automation Programme"
                         },
                         new
                         {
                             Id = 11,
-                            Name = "Client Onboarding Automation"
+                            Name = "P11 Client Onboarding Automation"
                         },
                         new
                         {
                             Id = 12,
-                            Name = "API Delivery Programme"
+                            Name = "P12 API Delivery Programme"
                         });
                 });
 

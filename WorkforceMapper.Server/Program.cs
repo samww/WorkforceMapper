@@ -35,8 +35,9 @@ using (var scope = app.Services.CreateScope())
         await db.SaveChangesAsync();
     }
 
-    if (!app.Environment.IsEnvironment("Testing") && !await db.Mappings.AnyAsync())
+    if (!app.Environment.IsEnvironment("Testing"))
     {
+        await db.Mappings.ExecuteDeleteAsync();
         var lookup = await db.Resources.ToDictionaryAsync(r => r.ResourceId, r => r.Id);
         var json = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "data", "mappings.json"));
         var records = System.Text.Json.JsonSerializer.Deserialize<List<MappingSeed>>(json,
