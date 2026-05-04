@@ -189,6 +189,25 @@ public class DataService(WorkforceDbContext context)
         return results;
     }
 
+    public async Task UpsertMappingAsync(int resourceId, int activityId, string month, decimal percent)
+    {
+        var existing = await context.Mappings.FindAsync(resourceId, activityId, month);
+        if (existing is not null)
+            existing.Percent = percent;
+        else
+            context.Mappings.Add(new Mapping { ResourceId = resourceId, ActivityId = activityId, Month = month, Percent = percent });
+        await context.SaveChangesAsync();
+    }
+
+    public async Task<bool> DeleteMappingAsync(int resourceId, int activityId, string month)
+    {
+        var mapping = await context.Mappings.FindAsync(resourceId, activityId, month);
+        if (mapping is null) return false;
+        context.Mappings.Remove(mapping);
+        await context.SaveChangesAsync();
+        return true;
+    }
+
     private static void AddCost(
         Dictionary<int, (string, decimal, decimal)> dict,
         int id, string name, decimal arr, decimal cost)
