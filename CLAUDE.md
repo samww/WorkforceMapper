@@ -14,8 +14,7 @@ Only read deeper docs when directly relevant to the issue being worked on:
 | #5 Mapping UI | Done | `docs/build/issue-5-mapping-ui.md` | `docs/build/api-contracts.md` |
 | #6 Chat API | Done | `docs/build/issue-6-chat-api.md` | `docs/build/api-contracts.md` |
 | #7 Chat UI | Done | `docs/build/issue-7-chat-ui.md` | `docs/build/api-contracts.md` |
-| #8 Docker + Azure deployment | **Open** | `docs/build/issue-8-deployment.md` | — |
-| #9 README + CLAUDE.md | **Open** | `docs/build/issue-9-documentation.md` | — |
+| #8 Docker + Azure deployment | Done | `docs/build/issue-8-deployment.md` | — |
 
 Additional docs (only when needed):
 - `docs/build/db-schema.md` — cost attribution chain, key constraints (issues #2–#4)
