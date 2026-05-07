@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - ConnectionStrings__Default=Data Source=/app/data/workforce.db
+    volumes:
+      - sqlite_data:/app/data
+
+volumes:
+  sqlite_data:

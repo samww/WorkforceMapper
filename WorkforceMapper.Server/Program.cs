@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<WorkforceDbContext>(o =>
-    o.UseSqlite("Data Source=workforce.db"));
+    o.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=workforce.db"));
 builder.Services.AddScoped<DataService>();
 builder.Services.AddSingleton(_ =>
     new AnthropicClient(builder.Configuration["ANTHROPIC_API_KEY"]!));

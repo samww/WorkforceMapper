@@ -1,7 +1,7 @@
 # Issue #7 — Chat UI: SSE chat panel
 
 > Domain context and glossary are in `CONTEXT.md`.
-> Chat API contract (`POST /api/chat`, SSE format) is in `CONTEXT.md`.
+> Chat API contract (`POST /api/chat`, SSE format) is in `docs/build/api-contracts.md`.
 
 ## Phase 5b — Frontend: chat panel
 

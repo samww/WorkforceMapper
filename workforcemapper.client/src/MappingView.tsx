@@ -29,7 +29,7 @@ export default function MappingView({ onOpenChat }: MappingViewProps) {
       )
     ).then((results) => {
       const zeros = new Set(
-        MONTH_OPTIONS.filter((o, i) =>
+        MONTH_OPTIONS.filter((_o, i) =>
           results[i].every((r) => r.mappings.reduce((s, m) => s + m.percent, 0) === 0)
         ).map((o) => o.value)
       );

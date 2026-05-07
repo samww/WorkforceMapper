@@ -47,6 +47,19 @@ Default month: **`2026-05`**. Hardcode as a constant throughout.
 
 ---
 
+## API Surface
+
+| Method | Endpoint | Notes |
+|---|---|---|
+| GET | `/api/health` | `{ status, resource_count, mapping_count }` |
+| GET | `/api/resources?month=` | Array with nested `mappings`; `active` reflects month flag |
+| GET | `/api/activities` | Full list |
+| PUT | `/api/mappings` | Body: `{ resource_id, activity_id, month, percent }` |
+| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404 |
+| POST | `/api/chat` | Body: `{ query, month }` → SSE stream of text tokens |
+
+---
+
 ## Tech Stack
 
 - **Backend:** ASP.NET Core (.NET 10), C#, EF Core + SQLite, `Anthropic.SDK` (`claude-haiku-4-5-20251001`)

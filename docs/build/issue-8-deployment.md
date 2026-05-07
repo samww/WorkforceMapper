@@ -6,7 +6,7 @@
 
 ### Dockerfile (multi-stage)
 
-- Stage 1 `node:22-slim AS frontend-build`: copy `ClientApp/`, `npm ci` + `npm run build`
+- Stage 1 `node:22-slim AS frontend-build`: copy `workforcemapper.client/`, `npm ci` + `npm run build`
 - Stage 2 `mcr.microsoft.com/dotnet/sdk:10.0 AS build`: `dotnet restore`, `dotnet publish -c Release`
 - Stage 3 `mcr.microsoft.com/dotnet/aspnet:10.0`: copy published output + built frontend; expose port 8080
 
