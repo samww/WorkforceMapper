@@ -1,6 +1,11 @@
 # WorkforceMapper — Domain Context
 
-Pragmenta Insights workforce capacity tool. Resources (employees, contractors, vendors) are mapped to activities at a percentage allocation per month. The AI layer lets users query capacity, cost, and over/under-allocation in natural language.
+> **Issue #10 in progress — two facts below will change as slices land:**
+> - The **advisory 100% rule** becomes a hard cap: `PUT`/`DELETE` `/api/mappings` will reject violations with 400 (slice #13, ADR 6).
+> - **`get_overallocated_resources`** is removed; `get_application_risk` and `get_product_risk` are added (slices #11–#12, #14).
+> Target API surface and tool list: `docs/build/api-contracts.md`.
+
+Pragmenta Insights workforce capacity tool. Resources (employees, contractors, vendors) are mapped to activities at a percentage allocation per month. The AI layer lets users query capacity, cost, and risk in natural language.
 
 **Fictional company. Any resemblance to real organisations is coincidental.**
 

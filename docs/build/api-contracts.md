@@ -1,6 +1,7 @@
 # API Surface + NL Query Tools
 
 > Domain context, glossary, data model, and constraints are in `CONTEXT.md`.
+> This file reflects the **target state after issue #10 lands**. See git history for the pre-#10 surface.
 
 ## API Surface
 
@@ -9,16 +10,61 @@
 | GET | `/api/health` | `{ status, resource_count, mapping_count }` |
 | GET | `/api/resources?month=` | Array with nested `mappings`; `active` reflects month flag |
 | GET | `/api/activities` | Full list |
-| PUT | `/api/mappings` | Body: `{ resource_id: int, activity_id: int, month: string, percent: float }` |
-| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404 |
+| GET | `/api/applications?month=` | `ApplicationRiskDto[]` — added in #11 |
+| GET | `/api/products?month=` | `ProductRiskDto[]` — added in #12 |
+| PUT | `/api/mappings` | Body: `{ resource_id: int, activity_id: int, month: string, percent: float }` → 200 or 400 `{ error: "would_exceed_cap" \| "resource_inactive_in_month" }` (#13) |
+| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404 / 400 `{ error: "resource_inactive_in_month" }` (#13) |
 | POST | `/api/chat` | Body: `{ query: string, month: string }` → SSE stream |
 
-## NL Query Tools (all 5 are required)
+## NL Query Tools
 
-| Tool | Key outputs |
-|---|---|
-| `get_capacity_by_division(division?, month?)` | `resource_count`, `active_resource_count`, `resource_type_split`, `monthly_cost`, `allocated_monthly_cost`, `unallocated_monthly_cost`, `allocation_pct` |
-| `get_activity_allocations(activity_id?, division?, activity_type?, month?)` | `activity_id`, `activity_name`, `activity_type`, `name`, `company`, `resource_type`, `percent`, `implied_monthly_cost` |
-| `get_unallocated_resources(division?, threshold_pct?, month?)` | `name`, `company`, `resource_type`, `division`, `total_allocation_pct`, `idle_monthly_cost` |
-| `get_overallocated_resources(division?, threshold_pct?, month?)` | `name`, `company`, `resource_type`, `division`, `total_allocation_pct`, `overallocation_pct` |
-| `get_cost_by_product(month?)` | `product_name`, `arr_usd`, `total_monthly_cost`; plus explicit `"Unattributed"` line |
+| Tool | Key outputs | Status |
+|---|---|---|
+| `get_capacity_by_division(division?, month?)` | `resource_count`, `active_resource_count`, `resource_type_split`, `monthly_cost`, `allocated_monthly_cost`, `unallocated_monthly_cost`, `allocation_pct` | Unchanged |
+| `get_activity_allocations(activity_id?, division?, activity_type?, month?)` | `activity_id`, `activity_name`, `activity_type`, `name`, `company`, `resource_type`, `percent`, `implied_monthly_cost` | Unchanged |
+| `get_unallocated_resources(division?, threshold_pct?, month?)` | `name`, `company`, `resource_type`, `division`, `total_allocation_pct`, `idle_monthly_cost` | Unchanged |
+| `get_cost_by_product(month?)` | `product_name`, `arr_usd`, `total_monthly_cost`; plus explicit `"Unattributed"` line | Unchanged |
+| `get_application_risk(application_id?, month?)` | `id`, `name`, `division`, `min_support_fte`, `recommended_support_fte`, `current_coverage_fte`, `risk` | Added in #11/#14 |
+| `get_product_risk(product_id?, month?)` | `id`, `name`, `arr`, `risk`, `contributing_apps[]` | Added in #12/#14 |
+| ~~`get_overallocated_resources`~~ | — | Removed in #14 (unreachable under hard cap) |
+
+## Response shapes (new in #10)
+
+### `ApplicationRiskDto`
+
+```json
+{
+  "id": 1,
+  "name": "AuthService",
+  "division": "Platform Engineering",
+  "min_support_fte": 4.0,
+  "recommended_support_fte": 5.0,
+  "current_coverage_fte": 3.0,
+  "risk": "high"
+}
+```
+
+`risk` values: `"high"` | `"medium"` | `"low"`
+
+### `ProductRiskDto`
+
+```json
+{
+  "id": 1,
+  "name": "CoreInsights",
+  "arr": 8500000,
+  "risk": "high",
+  "contributing_apps": [
+    { "id": 1, "name": "AuthService", "risk": "high" }
+  ]
+}
+```
+
+`contributing_apps` capped at 10 entries, ordered by risk desc then name asc.
+
+### Mapping rejection body
+
+```json
+{ "error": "would_exceed_cap" }
+{ "error": "resource_inactive_in_month" }
+```
