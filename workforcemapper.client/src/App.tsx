@@ -23,6 +23,8 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('mappings');
   const [selectedApp, setSelectedApp] = useState<ApplicationRisk | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductRisk | null>(null);
+  const [productBackApp, setProductBackApp] = useState<ApplicationRisk | null>(null);
+  const [appBackProduct, setAppBackProduct] = useState<ProductRisk | null>(null);
   const [month, setMonth] = useState(DEFAULT_MONTH);
   const [division, setDivision] = useState('All');
 
@@ -33,7 +35,7 @@ export default function App() {
           {(['mappings', 'applications', 'products'] as Tab[]).map(t => (
             <button
               key={t}
-              onClick={() => { setTab(t); setSelectedApp(null); setSelectedProduct(null); }}
+              onClick={() => { setTab(t); setSelectedApp(null); setSelectedProduct(null); setProductBackApp(null); setAppBackProduct(null); }}
               className={`px-4 py-2 text-sm font-medium capitalize rounded-t transition-colors
                 ${tab === t ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}
             >
@@ -81,13 +83,55 @@ export default function App() {
             <ApplicationsView month={month} division={division} onSelectApp={setSelectedApp} />
           )}
           {tab === 'applications' && selectedApp && (
-            <ApplicationDetail app={selectedApp} onBack={() => setSelectedApp(null)} />
+            <ApplicationDetail
+              app={selectedApp}
+              backLabel={appBackProduct ? `Back to ${appBackProduct.name}` : undefined}
+              onBack={() => {
+                setSelectedApp(null);
+                if (appBackProduct) {
+                  setTab('products');
+                  setSelectedProduct(appBackProduct);
+                  setAppBackProduct(null);
+                }
+              }}
+              onNavigateToProduct={async (productId) => {
+                const data: ProductRisk[] = await fetch(`/api/products?month=${month}`).then(r => r.json());
+                const product = data.find(p => p.id === productId);
+                if (product) {
+                  setProductBackApp(selectedApp);
+                  setTab('products');
+                  setSelectedApp(null);
+                  setSelectedProduct(product);
+                }
+              }}
+            />
           )}
           {tab === 'products' && !selectedProduct && (
             <ProductsView month={month} division={division} onSelectProduct={setSelectedProduct} />
           )}
           {tab === 'products' && selectedProduct && (
-            <ProductDetail product={selectedProduct} onBack={() => setSelectedProduct(null)} />
+            <ProductDetail
+              product={selectedProduct}
+              backLabel={productBackApp ? `Back to ${productBackApp.name}` : undefined}
+              onBack={() => {
+                setSelectedProduct(null);
+                if (productBackApp) {
+                  setTab('applications');
+                  setSelectedApp(productBackApp);
+                  setProductBackApp(null);
+                }
+              }}
+              onNavigateToApp={async (appId) => {
+                const data: ApplicationRisk[] = await fetch(`/api/applications?month=${month}`).then(r => r.json());
+                const app = data.find(a => a.id === appId);
+                if (app) {
+                  setAppBackProduct(selectedProduct);
+                  setTab('applications');
+                  setSelectedProduct(null);
+                  setSelectedApp(app);
+                }
+              }}
+            />
           )}
         </div>
       </div>

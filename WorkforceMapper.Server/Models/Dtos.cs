@@ -46,5 +46,6 @@ public record ApplicationRiskDto(
     double recommended_support_fte,
     double current_coverage_fte,
     string risk,
-    List<ProductRefDto> dependent_products
+    List<ProductRefDto> dependent_products,
+    List<ContributingAppDto> dependents
 );

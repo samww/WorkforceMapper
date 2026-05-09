@@ -13,9 +13,11 @@ function formatArr(usd: number) {
 interface Props {
   app: ApplicationRisk;
   onBack: () => void;
+  onNavigateToProduct: (id: number) => void;
+  backLabel?: string;
 }
 
-export default function ApplicationDetail({ app, onBack }: Props) {
+export default function ApplicationDetail({ app, onBack, onNavigateToProduct, backLabel = 'Back to Applications' }: Props) {
   const barMax = Math.max(app.recommended_support_fte * 1.2, app.current_coverage_fte);
   const coveragePct = (app.current_coverage_fte / barMax) * 100;
   const minPct = (app.min_support_fte / barMax) * 100;
@@ -24,7 +26,7 @@ export default function ApplicationDetail({ app, onBack }: Props) {
   return (
     <div className="p-4 text-gray-200">
       <button onClick={onBack} className="text-blue-400 hover:underline mb-4 text-sm">
-        &larr; Back to Applications
+        &larr; {backLabel}
       </button>
       <h2 className="text-xl font-semibold mb-1">{app.name}</h2>
       <p className="text-gray-400 text-sm mb-6">{app.division}</p>
@@ -51,9 +53,11 @@ export default function ApplicationDetail({ app, onBack }: Props) {
         <span>Min {app.min_support_fte.toFixed(1)} &nbsp; Rec {app.recommended_support_fte.toFixed(1)}</span>
       </div>
 
-      {app.dependent_products.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-sm font-medium text-gray-400 mb-2">Dependent Products</h3>
+      <div className="mt-8">
+        <h3 className="text-sm font-medium text-gray-400 mb-2">Dependent Products</h3>
+        {app.dependent_products.length === 0 ? (
+          <p className="text-sm text-gray-500">No products depend on this application.</p>
+        ) : (
           <table className="w-full text-sm text-gray-200">
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-700">
@@ -64,8 +68,15 @@ export default function ApplicationDetail({ app, onBack }: Props) {
             </thead>
             <tbody>
               {app.dependent_products.map(p => (
-                <tr key={p.id} className="border-b border-gray-800">
-                  <td className="py-2 pr-4">{p.name}</td>
+                <tr key={p.id} className="border-b border-gray-800 hover:bg-gray-800">
+                  <td className="py-2 pr-4">
+                    <button
+                      onClick={() => onNavigateToProduct(p.id)}
+                      className="text-blue-400 hover:underline text-left"
+                    >
+                      {p.name}
+                    </button>
+                  </td>
                   <td className="py-2 text-gray-400 pr-4">{formatArr(p.arr_usd)}</td>
                   <td className="py-2">
                     {p.risk && (
@@ -78,8 +89,8 @@ export default function ApplicationDetail({ app, onBack }: Props) {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -361,9 +361,10 @@ public class DataService(WorkforceDbContext context)
     {
         var applications = await context.Applications
             .Include(a => a.Activities)
-            .Include(a => a.ProductApplications)
-                .ThenInclude(pa => pa.Product)
             .ToListAsync();
+
+        var allProducts = await context.Products.ToListAsync();
+        var productById = allProducts.ToDictionary(p => p.Id);
 
         var supportMappings = await context.Mappings
             .Where(m => m.Month == month && m.Activity.ActivityType == "Support")
@@ -399,6 +400,28 @@ public class DataService(WorkforceDbContext context)
             .GroupBy(pa => pa.ProductId)
             .ToDictionary(g => g.Key, g => g.Select(pa => pa.ApplicationId).ToHashSet());
 
+        // Transitive closure per product: direct apps + all their transitive dependencies
+        var closureByProduct = paByProduct.ToDictionary(
+            kvp => kvp.Key,
+            kvp =>
+            {
+                var closure = new HashSet<int>(kvp.Value);
+                foreach (var appId in kvp.Value)
+                    foreach (var dep in graph.TransitiveDependenciesOf(appId))
+                        closure.Add(dep);
+                return closure;
+            });
+
+        // Reverse: appId → product ids whose closure includes this app
+        var productIdsByApp = new Dictionary<int, List<int>>();
+        foreach (var (productId, closure) in closureByProduct)
+            foreach (var appId in closure)
+            {
+                if (!productIdsByApp.TryGetValue(appId, out var list))
+                    productIdsByApp[appId] = list = [];
+                list.Add(productId);
+            }
+
         RiskLevel ProductRiskFor(int productId)
         {
             var directApps = paByProduct.TryGetValue(productId, out var d) ? d : [];
@@ -411,29 +434,46 @@ public class DataService(WorkforceDbContext context)
                 .Aggregate(RiskLevel.Low, (acc, r) => r > acc ? r : acc);
         }
 
+        // First pass: build name + division lookup for all apps (needed for dependents projection)
+        var nameById = applications.ToDictionary(a => a.Id, a => a.Name);
+        var divisionById = applications.ToDictionary(
+            a => a.Id, a => a.Activities.FirstOrDefault()?.Division ?? "");
+
         if (applicationId.HasValue)
             applications = applications.Where(a => a.Id == applicationId.Value).ToList();
 
+        // Second pass: project DTOs with dependents populated from reverse traversal
         return applications
             .Select(app =>
             {
                 var coverage = coverageByApp.TryGetValue(app.Id, out var c) ? c : 0.0;
                 var risk = appRiskById[app.Id];
-                var division = app.Activities.FirstOrDefault()?.Division ?? "";
-                var products = app.ProductApplications
-                    .Select(pa =>
+                var division = divisionById[app.Id];
+                var products = (productIdsByApp.TryGetValue(app.Id, out var pids) ? pids : [])
+                    .Where(pid => productById.ContainsKey(pid))
+                    .Select(pid =>
                     {
-                        var pRisk = ProductRiskFor(pa.Product.Id);
-                        return new ProductRefDto(pa.Product.Id, pa.Product.Name, pa.Product.ArrUsd,
+                        var product = productById[pid];
+                        var pRisk = ProductRiskFor(pid);
+                        return new ProductRefDto(pid, product.Name, product.ArrUsd,
                             pRisk.ToString().ToLowerInvariant());
                     })
                     .OrderBy(p => p.name)
+                    .ToList();
+                var dependents = graph.TransitiveDependentsOf(app.Id)
+                    .Where(id => nameById.ContainsKey(id))
+                    .Select(id =>
+                    {
+                        var depRisk = appRiskById.TryGetValue(id, out var r) ? r : RiskLevel.Low;
+                        return new ContributingAppDto(id, nameById[id], depRisk.ToString().ToLowerInvariant(), divisionById[id]);
+                    })
+                    .OrderBy(d => d.name)
                     .ToList();
                 return new ApplicationRiskDto(
                     app.Id, app.Name, division,
                     app.MinSupportFte, app.RecommendedSupportFte,
                     coverage, risk.ToString().ToLowerInvariant(),
-                    products
+                    products, dependents
                 );
             })
             .OrderBy(a => a.id)

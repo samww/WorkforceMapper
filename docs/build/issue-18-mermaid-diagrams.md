@@ -1,135 +1,50 @@
-# Issue #18 — Mermaid dependency diagrams
+# Issue #18 — Mermaid dependency diagrams (done)
 
 > Dependency graph contract and risk propagation rules in `docs/build/risk-model.md`.
 > `DependencyGraph` service in `WorkforceMapper.Server/Services/DependencyGraph.cs`.
 > `ApplicationRiskDto` and related DTOs in `WorkforceMapper.Server/Models/Dtos.cs`.
 
-Replace the expandable dependency tree in `ProductDetail` and add a dependency diagram to `ApplicationDetail`, both rendered with Mermaid.js.
+## What was built
 
----
+### Backend
 
-## Phase A — Backend: DependencyGraph reverse traversal
+**`DependencyGraph.TransitiveDependentsOf(int appId)`** — BFS over `_reverseEdges` (swapped edge list built in constructor). Returns all apps that directly or transitively depend on `appId`, excluding `appId` itself.
 
-Add a `_reverseEdges` dictionary to `DependencyGraph` — built in the constructor from the same edge list, but with source and target swapped:
-```csharp
-foreach (var (appId, dep) in edges)
-{
-    if (!_reverseEdges.TryGetValue(dep, out var set))
-        _reverseEdges[dep] = set = [];
-    set.Add(appId);
-}
-```
+**`ApplicationRiskDto`** extended with two new fields:
+- `dependent_products: List<ProductRefDto>` — products whose transitive dependency closure includes this application (not just direct `product_applications` links). Computed by building per-product closures, then reversing to an app→products index.
+- `dependents: List<ContributingAppDto>` — apps that transitively depend on this application, via `TransitiveDependentsOf`.
 
-Add a new public method:
-```csharp
-public IReadOnlySet<int> TransitiveDependentsOf(int appId)
-```
-This traverses `_reverseEdges` from `appId` upward (BFS), identical structure to `TransitiveDependenciesOf` but using `_reverseEdges`. Returns all app IDs that directly or transitively depend on `appId`, excluding `appId` itself.
+**`DataService.GetApplicationsAsync`** uses a two-pass approach: first pass builds `nameById`/`divisionById` and `appRiskById` for all apps; second pass projects DTOs with `dependent_products` (transitive) and `dependents` (reverse BFS).
 
----
+### Frontend
 
-## Phase B — Backend: ApplicationRiskDto extension
+**`MermaidDiagram.tsx`** — wrapper around `mermaid.render`. Uses a unique `renderId = mermaid-{ts}-{rand}` per effect invocation to prevent StrictMode double-invoke races. Accepts `onNodeClick?(nodeId: string)` — after render, attaches click listeners to `g.node` SVG elements and extracts node IDs via `/flowchart-(.+)-\d+$/` (no `^` — Mermaid v11 prefixes render IDs onto element IDs).
 
-Add `List<ContributingAppDto> dependents` as the final parameter of `ApplicationRiskDto` in `Dtos.cs`. `ContributingAppDto` already has `{ id, name, risk }` — no changes needed (if issue #16 added `division`, include it here too).
+**`diagramBuilders.ts`** — pure functions, testable without DOM:
+- `buildProductMermaid(directApps, productName)` — renders product as a circle `(("name"))` at top connected by arrows to app rectangles `["name"]:::riskClass`.
 
-In `DataService.GetApplicationsAsync`: build the full `appRiskById` and name lookup in a first pass over all applications, then in a second pass populate `dependents` by calling `graph.TransitiveDependentsOf(app.Id)`, filtering to known app IDs, projecting to `ContributingAppDto`, and ordering by name. The two-pass structure is necessary so each app's dependents can resolve names from the sibling list.
+**`ProductDetail`** — replaced expandable AppNode tree with Mermaid diagram (clickable nodes navigate to ApplicationDetail) and a Contributing Applications table (also clickable).
 
----
+**`ApplicationDetail`** — replaced planned dependents Mermaid diagram with a Dependent Products table (clickable product names navigate to ProductDetail). The `dependents` field remains on the DTO and interface for future use.
 
-## Phase C — Frontend: Mermaid component
+**Bidirectional navigation** (App.tsx):
+- `productBackApp: ApplicationRisk | null` — saved when navigating AppDetail → ProductDetail; back restores AppDetail.
+- `appBackProduct: ProductRisk | null` — saved when navigating ProductDetail → AppDetail; back restores ProductDetail.
+- Back button labels update to the source screen name (`"Back to AuthService"`, `"Back to DataLicensing"`).
+- Both states cleared on tab switch.
 
-Install: `npm install mermaid` in `workforcemapper.client`.
+### Deviations from original spec
 
-Create `src/MermaidDiagram.tsx`:
-```tsx
-import { useEffect, useRef } from 'react';
-import mermaid from 'mermaid';
+| Spec (Phase E) | What was built |
+|---|---|
+| ApplicationDetail: Mermaid dependents diagram showing apps that depend on this app | Replaced with a clickable Dependent Products table (products whose closure includes this app) |
+| ProductDetail: diagram showing direct_apps tree only | Diagram shows product as circle → app rectangles; nodes are clickable |
+| No inter-screen navigation specified | Full bidirectional navigation with context-aware back labels added |
 
-mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+## Tests added
 
-let idCounter = 0;
-
-export default function MermaidDiagram({ definition }: { definition: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const id = useRef(`mermaid-${++idCounter}`);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    mermaid.render(id.current, definition).then(({ svg }) => {
-      ref.current!.innerHTML = svg;
-    });
-  }, [definition]);
-
-  return <div ref={ref} className="overflow-x-auto" />;
-}
-```
-
----
-
-## Phase D — ProductDetail: replace AppNode tree with Mermaid
-
-Convert `direct_apps` + their `dependencies` into a Mermaid `graph TD` definition:
-
-```ts
-function buildProductMermaid(directApps: DirectAppNode[]): string {
-  const lines: string[] = ['graph TD'];
-  const cls = (risk: string) => risk === 'high' ? 'high' : risk === 'medium' ? 'medium' : 'low';
-  lines.push('classDef high fill:#dc2626,color:#fff,stroke:#991b1b');
-  lines.push('classDef medium fill:#d97706,color:#fff,stroke:#92400e');
-  lines.push('classDef low fill:#16a34a,color:#fff,stroke:#166534');
-  for (const app of directApps) {
-    lines.push(`  app${app.id}["${app.name}"]:::${cls(app.risk)}`);
-    for (const dep of app.dependencies)
-      lines.push(`  app${app.id} --> app${dep.id}["${dep.name}"]:::${cls(dep.risk)}`);
-  }
-  return lines.join('\n');
-}
-```
-
-Replace the `<ul>` / `AppNode` tree in `ProductDetail` with:
-```tsx
-<MermaidDiagram definition={buildProductMermaid(product.direct_apps)} />
-```
-
-Remove the `AppNode` component and `RiskBadge` import if no longer used.
-
----
-
-## Phase E — ApplicationDetail: add dependents diagram
-
-Update `ApplicationRisk` TypeScript interface in `ApplicationsView.tsx` to add:
-```ts
-dependents: { id: number; name: string; risk: string }[];
-```
-
-In `ApplicationDetail`, after the "Dependent Products" table, add a "Downstream Dependents" section:
-
-```tsx
-function buildAppMermaid(dependents: ContributingApp[], selfName: string): string {
-  const lines = ['graph TD'];
-  lines.push('classDef high fill:#dc2626,color:#fff,stroke:#991b1b');
-  lines.push('classDef medium fill:#d97706,color:#fff,stroke:#92400e');
-  lines.push('classDef low fill:#16a34a,color:#fff,stroke:#166534');
-  // Self node (unstyled or neutral)
-  lines.push(`  self["${selfName}"]`);
-  for (const dep of dependents) {
-    const cls = dep.risk === 'high' ? 'high' : dep.risk === 'medium' ? 'medium' : 'low';
-    lines.push(`  app${dep.id}["${dep.name}"]:::${cls} --> self`);
-  }
-  return lines.join('\n');
-}
-```
-
-Only render the section if `app.dependents.length > 0`. Title: "Apps that depend on this application".
-
----
-
-## Phase F — Tests
-
-Add to `DependencyGraphTests`: direct-only case, transitive case, and leaf node returns empty. Existing `TransitiveDependenciesOf` tests must stay green.
-
-## Out of scope
-
-No new API endpoints. Diagram is read-only (no zoom/edit). No changes to `ProductsView` list.
-
-**Output:** Mermaid diagrams on ApplicationDetail and ProductDetail; `DependencyGraph.TransitiveDependentsOf`; `ApplicationRiskDto` extended with `dependents`.
+- `DependencyGraphTests`: 3 tests for `TransitiveDependentsOf` (empty, direct, transitive chain)
+- `MermaidDiagram.test.tsx`: sets innerHTML on resolve; StrictMode safety; `onNodeClick` fires with correct node ID
+- `diagramBuilders.test.ts`: header + classDefs + product circle; product→app edge; app→dep edge
+- `ApplicationDetail.test.tsx`: renders, coverage values, product names/ARR, empty state, click callback
+- `ProductDetail.test.tsx`: heading present, container rendered

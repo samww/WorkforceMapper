@@ -3,6 +3,7 @@ namespace WorkforceMapper.Server.Services;
 public sealed class DependencyGraph
 {
     private readonly Dictionary<int, HashSet<int>> _edges = [];
+    private readonly Dictionary<int, HashSet<int>> _reverseEdges = [];
     private readonly Dictionary<int, HashSet<int>> _productApps = [];
 
     public DependencyGraph(
@@ -14,6 +15,10 @@ public sealed class DependencyGraph
             if (!_edges.TryGetValue(appId, out var set))
                 _edges[appId] = set = [];
             set.Add(dep);
+
+            if (!_reverseEdges.TryGetValue(dep, out var rset))
+                _reverseEdges[dep] = rset = [];
+            rset.Add(appId);
         }
 
         foreach (var (productId, appId) in productApps)
@@ -39,6 +44,30 @@ public sealed class DependencyGraph
             if (!visited.Add(current)) continue;
 
             if (_edges.TryGetValue(current, out var next))
+                foreach (var dep in next)
+                    if (!visited.Contains(dep))
+                        queue.Enqueue(dep);
+        }
+
+        visited.Remove(appId);
+        return visited;
+    }
+
+    public IReadOnlySet<int> TransitiveDependentsOf(int appId)
+    {
+        var visited = new HashSet<int> { appId };
+        var queue = new Queue<int>();
+
+        if (_reverseEdges.TryGetValue(appId, out var direct))
+            foreach (var dep in direct)
+                queue.Enqueue(dep);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!visited.Add(current)) continue;
+
+            if (_reverseEdges.TryGetValue(current, out var next))
                 foreach (var dep in next)
                     if (!visited.Contains(dep))
                         queue.Enqueue(dep);

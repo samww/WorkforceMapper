@@ -83,6 +83,41 @@ public class DependencyGraphTests
         Assert.Contains(10, graph.ProductsAffectedByApp(3));
     }
 
+    // --- TransitiveDependentsOf ---
+
+    [Fact]
+    public void TransitiveDependentsOf_ReturnsEmpty_WhenNothingDependsOnApp()
+    {
+        // A(1)->B(2)->C(3): nothing depends on A(1), so TransitiveDependentsOf(1) is empty
+        var graph = new DependencyGraph([(1, 2), (2, 3)], []);
+
+        var result = graph.TransitiveDependentsOf(1);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void TransitiveDependentsOf_ReturnsDirectDependent()
+    {
+        // A(1)->B(2): B is depended on by A directly
+        var graph = new DependencyGraph([(1, 2)], []);
+
+        var result = graph.TransitiveDependentsOf(2);
+
+        Assert.Equal([1], result.Order().ToArray());
+    }
+
+    [Fact]
+    public void TransitiveDependentsOf_ReturnsTransitiveChain()
+    {
+        // A(1)->B(2)->C(3): querying C returns both B and A
+        var graph = new DependencyGraph([(1, 2), (2, 3)], []);
+
+        var result = graph.TransitiveDependentsOf(3);
+
+        Assert.Equal([1, 2], result.Order().ToArray());
+    }
+
     // --- Cycle 6: multiple paths ---
 
     [Fact]

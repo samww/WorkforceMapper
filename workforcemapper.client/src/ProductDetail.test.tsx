@@ -1,6 +1,13 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import ProductDetail from './ProductDetail';
+
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn().mockResolvedValue({ svg: '<svg />' }),
+  },
+}));
 
 const PRODUCT = {
   id: 1,
@@ -8,17 +15,17 @@ const PRODUCT = {
   arr: 6200000,
   risk: 'high' as const,
   contributing_apps: [
-    { id: 4, name: 'AuthService', risk: 'high' as const },
-    { id: 1, name: 'CoreDataWarehouse', risk: 'low' as const },
+    { id: 4, name: 'AuthService', risk: 'high' as const, division: 'Platform Engineering' },
+    { id: 1, name: 'CoreDataWarehouse', risk: 'low' as const, division: 'Platform Engineering' },
   ],
   direct_apps: [
     {
       id: 1, name: 'CoreDataWarehouse', risk: 'low' as const,
-      dependencies: [{ id: 4, name: 'AuthService', risk: 'high' as const }],
+      dependencies: [{ id: 4, name: 'AuthService', risk: 'high' as const, division: 'Platform Engineering' }],
     },
     {
       id: 2, name: 'APIGateway', risk: 'low' as const,
-      dependencies: [{ id: 4, name: 'AuthService', risk: 'high' as const }],
+      dependencies: [{ id: 4, name: 'AuthService', risk: 'high' as const, division: 'Platform Engineering' }],
     },
   ],
 };
@@ -35,15 +42,19 @@ describe('ProductDetail', () => {
     expect(badges.length).toBeGreaterThan(0);
   });
 
-  it('shows direct apps in the dependency tree', () => {
+  it('shows the dependency tree heading when direct_apps is non-empty', () => {
     render(<ProductDetail product={PRODUCT} onBack={() => {}} />);
-    expect(screen.getByText('CoreDataWarehouse')).toBeInTheDocument();
-    expect(screen.getByText('APIGateway')).toBeInTheDocument();
+    expect(screen.getByText('Dependency Tree')).toBeInTheDocument();
   });
 
-  it('shows nested app dependencies under a direct app', () => {
-    render(<ProductDetail product={PRODUCT} onBack={() => {}} />);
-    // AuthService appears as a dependency of both direct apps; at least one instance must be visible
-    expect(screen.getAllByText('AuthService').length).toBeGreaterThan(0);
+  it('renders the mermaid diagram container', () => {
+    const { container } = render(<ProductDetail product={PRODUCT} onBack={() => {}} />);
+    expect(container.querySelector('.overflow-x-auto')).toBeInTheDocument();
+  });
+
+  it('omits the dependency tree section when direct_apps is empty', () => {
+    const noApps = { ...PRODUCT, direct_apps: [] };
+    render(<ProductDetail product={noApps} onBack={() => {}} />);
+    expect(screen.queryByText('Dependency Tree')).not.toBeInTheDocument();
   });
 });
