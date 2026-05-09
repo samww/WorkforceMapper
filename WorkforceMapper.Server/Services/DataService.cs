@@ -348,7 +348,7 @@ public class DataService(WorkforceDbContext context)
         .ToList();
     }
 
-    public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(string month)
+    public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(string month, int? applicationId = null)
     {
         var applications = await context.Applications
             .Include(a => a.Activities)
@@ -401,6 +401,9 @@ public class DataService(WorkforceDbContext context)
                 .Select(id => appRiskById.TryGetValue(id, out var r) ? r : RiskLevel.Low)
                 .Aggregate(RiskLevel.Low, (acc, r) => r > acc ? r : acc);
         }
+
+        if (applicationId.HasValue)
+            applications = applications.Where(a => a.Id == applicationId.Value).ToList();
 
         return applications
             .Select(app =>

@@ -11,18 +11,25 @@ public class AgentService(IClaudeClient claude, DataService data)
     private static string BuildSystemPrompt(string month) => $"""
         You are a workforce capacity analyst for Pragmenta Insights, a mid-size data analytics company.
         You have access to tools that query the company's workforce allocation data. Use them to answer
-        questions about capacity utilisation, monthly cost, product attribution, and run/change spend.
+        questions about capacity utilisation, monthly cost, product attribution, risk, and run/change spend.
 
         Key facts about the data:
         - All costs are in USD; rates are monthly.
         - The currently selected month is {month}. Use this month for all tool calls unless the user
           explicitly asks about a different month. Do not guess or invent other months.
-        - allocation_pct values above 100% indicate over-allocation (a resource's mapped percent totals
-          exceed 100%) — this is a real operational condition, not a data error.
-        - Because some resources are over-allocated, the sum of all implied mapping costs will exceed
-          total payroll. When surfacing product attribution totals, always note this and state the
-          over-allocation premium (total_mapped_cost minus total_payroll, both returned by
-          get_cost_by_product). Do not call any additional tool for this.
+        - The 100% allocation rule is hard — the API rejects any mapping change that would push a
+          resource above 100% or target a month in which the resource is inactive.
+        - Application risk (get_application_risk) is classified as high, medium, or low based on
+          current_coverage_fte against min_support_fte and recommended_support_fte: below min is high,
+          below recommended is medium, at or above recommended is low.
+        - The dependent_products field in get_application_risk results lists only direct
+          product-application links. Foundational infrastructure apps (e.g. AuthService) have no direct
+          product links and will show dependent_products: [] — yet their risk propagates to every
+          product that depends on them transitively. Do not use dependent_products to assess ARR
+          exposure; use get_product_risk instead and look for the app in contributing_apps.
+        - Product risk (get_product_risk) is the maximum application risk across the transitive closure
+          of all applications the product depends on (max-wins aggregation). Always call get_product_risk
+          when asked about product revenue at risk or portfolio-wide exposure.
         - get_cost_by_product returns an "Unattributed" line for mapped cost that cannot be traced to
           any product (e.g. AuthService support, ObservabilityStack support, DevPortal Rebuild — shared
           infrastructure overhead). This is deliberate, not a data quality issue.
@@ -136,12 +143,18 @@ public class AgentService(IClaudeClient claude, DataService data)
                         month),
                     JsonOpts),
 
-            "get_overallocated_resources" =>
+            "get_application_risk" =>
                 JsonSerializer.Serialize(
-                    await data.GetOverallocatedResourcesAsync(
-                        division,
-                        (int)(args?["threshold_pct"]?.GetValue<double>() ?? 100),
-                        month),
+                    await data.GetApplicationsAsync(
+                        month,
+                        args?["application_id"]?.GetValue<int>()),
+                    JsonOpts),
+
+            "get_product_risk" =>
+                JsonSerializer.Serialize(
+                    await data.GetProductRiskAsync(
+                        month,
+                        args?["product_id"]?.GetValue<int>()),
                     JsonOpts),
 
             "get_cost_by_product" =>
@@ -179,13 +192,19 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["threshold_pct"] = Prop("number", "Allocation % ceiling (default 100)."),
                 ["month"]         = Prop("string", "Month in YYYY-MM format.")
             }),
-        MakeTool("get_overallocated_resources",
-            "List active resources whose total allocation exceeds a threshold.",
+        MakeTool("get_application_risk",
+            "Get application risk classification (high/medium/low) based on support coverage against min and recommended FTE thresholds.",
             new JsonObject
             {
-                ["division"]      = Prop("string", "Filter by division name."),
-                ["threshold_pct"] = Prop("number", "Allocation % floor (default 100)."),
-                ["month"]         = Prop("string", "Month in YYYY-MM format.")
+                ["application_id"] = Prop("integer", "Filter to a specific application ID."),
+                ["month"]          = Prop("string",  "Month in YYYY-MM format.")
+            }),
+        MakeTool("get_product_risk",
+            "Get product risk (max-wins over transitive application dependency closure) with contributing app breakdown.",
+            new JsonObject
+            {
+                ["product_id"] = Prop("integer", "Filter to a specific product ID."),
+                ["month"]      = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_cost_by_product",
             "Get total monthly cost attributed to each product, plus an Unattributed line.",

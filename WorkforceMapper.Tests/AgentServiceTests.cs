@@ -129,6 +129,108 @@ public class AgentServiceTests
         Assert.All(tokens, t => Assert.NotEmpty(t));
     }
 
+    // ── Cycle 5 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_ToolList_ContainsRiskTools_AndDoesNotContainOverallocatedResources()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("No tools needed."));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        Assert.NotNull(captured?.Tools);
+        Assert.Contains(captured.Tools, t => t.Function?.Name == "get_application_risk");
+        Assert.Contains(captured.Tools, t => t.Function?.Name == "get_product_risk");
+        Assert.DoesNotContain(captured.Tools, t => t.Function?.Name == "get_overallocated_resources");
+    }
+
+    // ── Cycle 6 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_CallsApplicationRiskTool_WhenAskedAboutHighRiskApps()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_application_risk", "tc_ar", @"{""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("Which applications are high risk?", "2026-05", _ => Task.CompletedTask);
+
+        mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+            p.Messages.Any(m =>
+                m.Content != null &&
+                m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_ar"))
+        )), Times.AtLeastOnce);
+    }
+
+    // ── Cycle 7 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_CallsProductRiskTool_WhenAskedAboutAffectedProducts()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_product_risk", "tc_pr", @"{""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("Which products are affected by high risk apps?", "2026-05", _ => Task.CompletedTask);
+
+        mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+            p.Messages.Any(m =>
+                m.Content != null &&
+                m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_pr"))
+        )), Times.AtLeastOnce);
+    }
+
+    // ── Cycle 8 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_ComposesDonorCandidates_FromUnallocatedAndActivityAllocations()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_unallocated_resources", "tc_ur", @"{""month"":""2026-05""}"))
+            .ReturnsAsync(ToolUseResponse("get_activity_allocations", "tc_aa", @"{""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("Who could be moved to support AuthService?", "2026-05", _ => Task.CompletedTask);
+
+        mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+            p.Messages.Any(m =>
+                m.Content != null &&
+                m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_ur")) &&
+            p.Messages.Any(m =>
+                m.Content != null &&
+                m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_aa"))
+        )), Times.AtLeastOnce);
+    }
+
     // ── Cycle 4 ─────────────────────────────────────────────────────────────
 
     [Fact]
