@@ -4,14 +4,13 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **#17–#20** (multi-month data, dependency diagrams, mobile, query chips). Issues #11–#16, #21–#23 done; `CONTEXT.md` reflects current state.
+Active iteration: **#18–#20** (dependency diagrams, mobile, query chips). Issues #11–#17, #21–#23 done; `CONTEXT.md` reflects current state.
 
 Only read deeper docs when directly relevant to the issue being worked on:
 
 | Issue | Spec | Blocked by |
 |---|---|---|
-| #2–#16, #21–#23 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
-| #17 Multi-month synthetic data | `docs/build/issue-17-multi-month-data.md` — also read `docs/build/synthetic-data-spec.md` | none |
+| #2–#17, #21–#23 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
 | #18 Mermaid dependency diagrams | `docs/build/issue-18-mermaid-diagrams.md` — also read `docs/build/risk-model.md` | none |
 | #19 Mobile touch targets | `docs/build/issue-19-touch-targets.md` | none |
 | #20 Demo-aligned query chips | `docs/build/issue-20-query-chips.md` — also read `docs/background/DEMO_SCRIPT.md` | none |
