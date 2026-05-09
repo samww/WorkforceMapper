@@ -25,7 +25,7 @@ public record ChatRequest(string Query, string? Month);
 
 public record ProductRefDto(int id, string name, decimal arr_usd, string? risk = null);
 
-public record ContributingAppDto(int id, string name, string risk);
+public record ContributingAppDto(int id, string name, string risk, string division);
 
 public record DirectAppNodeDto(int id, string name, string risk, List<ContributingAppDto> dependencies);
 

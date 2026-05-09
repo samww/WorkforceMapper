@@ -4,6 +4,7 @@ export interface ContributingApp {
   id: number;
   name: string;
   risk: 'high' | 'medium' | 'low';
+  division: string;
 }
 
 export interface DirectAppNode {
@@ -24,6 +25,7 @@ export interface ProductRisk {
 
 interface Props {
   month: string;
+  division: string;
   onSelectProduct: (product: ProductRisk) => void;
 }
 
@@ -37,10 +39,12 @@ function formatArr(usd: number) {
   return `$${Math.round(usd / 1000).toLocaleString()}k`;
 }
 
-export default function ProductsView({ month, onSelectProduct }: Props) {
+export default function ProductsView({ month, division, onSelectProduct }: Props) {
   const [products, setProducts] = useState<ProductRisk[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetch(`/api/products?month=${month}`)
       .then(r => r.json())
       .then((data: ProductRisk[]) => {
@@ -50,8 +54,19 @@ export default function ProductsView({ month, onSelectProduct }: Props) {
           return rd !== 0 ? rd : b.arr - a.arr;
         });
         setProducts(data);
+        setLoading(false);
       });
   }, [month]);
+
+  const visible = division === 'All'
+    ? products
+    : products.filter(p => p.contributing_apps.some(a => a.division === division));
+
+  if (loading) return (
+    <div className="flex justify-center items-center h-40">
+      <div role="status" className="w-8 h-8 rounded-full border-2 border-gray-600 border-t-blue-400 animate-spin" />
+    </div>
+  );
 
   return (
     <div className="p-4">
@@ -65,7 +80,7 @@ export default function ProductsView({ month, onSelectProduct }: Props) {
           </tr>
         </thead>
         <tbody>
-          {products.map(product => (
+          {visible.map(product => (
             <tr
               key={product.id}
               className="border-b border-gray-800 hover:bg-gray-800 cursor-pointer"

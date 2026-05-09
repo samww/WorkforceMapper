@@ -305,6 +305,7 @@ public class DataService(WorkforceDbContext context)
             (riskByAppId.TryGetValue(appId, out var r) ? r : RiskLevel.Low).ToString().ToLowerInvariant();
 
         string AppName(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.name ?? "";
+        string AppDivision(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.division ?? "";
 
         return products.Select(product =>
         {
@@ -320,7 +321,7 @@ public class DataService(WorkforceDbContext context)
                 .OrderByDescending(a => a.risk)
                 .ThenBy(a => a.name)
                 .Take(10)
-                .Select(a => new ContributingAppDto(a.id, a.name, a.risk.ToString().ToLowerInvariant()))
+                .Select(a => new ContributingAppDto(a.id, a.name, a.risk.ToString().ToLowerInvariant(), AppDivision(a.id)))
                 .ToList();
 
             var maxRisk = closure
@@ -332,7 +333,7 @@ public class DataService(WorkforceDbContext context)
                 {
                     var deps = (directDepsOfApp.TryGetValue(appId, out var depList) ? depList : [])
                         .Where(depId => AppName(depId) != "")
-                        .Select(depId => new ContributingAppDto(depId, AppName(depId), RiskStr(depId)))
+                        .Select(depId => new ContributingAppDto(depId, AppName(depId), RiskStr(depId), AppDivision(depId)))
                         .OrderByDescending(a => a.risk)
                         .ThenBy(a => a.name)
                         .ToList();

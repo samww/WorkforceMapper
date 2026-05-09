@@ -57,17 +57,15 @@ beforeEach(() => {
 describe('MappingView', () => {
   it('renders a card for each resource', async () => {
     mockFetch();
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     expect(await screen.findByText('Alice Chen')).toBeInTheDocument();
     expect(screen.getByText('Bob Smith')).toBeInTheDocument();
   });
 
-  it('division filter shows only cards in the selected division', async () => {
+  it('division prop filters to matching division only', async () => {
     mockFetch();
-    render(<MappingView />);
-    await screen.findByText('Alice Chen');
-
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /division/i }), 'Analytics');
+    render(<MappingView month="2026-05" division="Analytics" />);
+    await screen.findByText('Bob Smith');
 
     expect(screen.queryByText('Alice Chen')).not.toBeInTheDocument();
     expect(screen.getByText('Bob Smith')).toBeInTheDocument();
@@ -75,7 +73,7 @@ describe('MappingView', () => {
 
   it('unallocated filter hides resources with total allocation >= 100%', async () => {
     mockFetch();
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     await screen.findByText('Alice Chen');
 
     await userEvent.click(screen.getByRole('checkbox', { name: /unallocated only/i }));
@@ -86,7 +84,7 @@ describe('MappingView', () => {
 
   it('pencil opens an inline edit form pre-filled with the current percent', async () => {
     mockFetch();
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     await screen.findByText('Alice Chen');
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
@@ -110,7 +108,7 @@ describe('MappingView', () => {
       return Promise.resolve({ ok: true } as Response);
     });
 
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     await screen.findByText('Alice Chen');
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
@@ -136,7 +134,7 @@ describe('MappingView', () => {
       return Promise.resolve({ ok: true } as Response);
     });
 
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     await screen.findByText('Alice Chen');
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
@@ -157,7 +155,7 @@ describe('MappingView', () => {
       return Promise.resolve({ ok: true } as Response);
     });
 
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     await screen.findByText('Alice Chen');
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
@@ -171,9 +169,42 @@ describe('MappingView', () => {
     expect(putCalls).toHaveLength(0);
   });
 
+  it('shows a spinner while loading', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    render(<MappingView month="2026-05" division="All" />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('shows a saving indicator in the card while a mutation is pending', async () => {
+    let resolvePut!: () => void;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url, opts) => {
+      const u = String(url);
+      if (u.includes('/api/resources')) return Promise.resolve({ ok: true, json: () => Promise.resolve(RESOURCES) } as Response);
+      if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
+      if ((opts as RequestInit)?.method === 'PUT') {
+        return new Promise(resolve => {
+          resolvePut = () => resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+        });
+      }
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '20');
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
+
+    expect(within(aliceCard).getByRole('status')).toBeInTheDocument();
+    resolvePut();
+  });
+
   it('saving the edit form PUTs the updated mapping', async () => {
     const fetchSpy = mockFetch();
-    render(<MappingView />);
+    render(<MappingView month="2026-05" division="All" />);
     await screen.findByText('Alice Chen');
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;

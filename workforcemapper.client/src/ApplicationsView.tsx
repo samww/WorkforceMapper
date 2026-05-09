@@ -20,6 +20,7 @@ export interface ApplicationRisk {
 
 interface Props {
   month: string;
+  division: string;
   onSelectApp: (app: ApplicationRisk) => void;
 }
 
@@ -57,10 +58,12 @@ function CoverageBar({ current, min, recommended }: { current: number; min: numb
   );
 }
 
-export default function ApplicationsView({ month, onSelectApp }: Props) {
+export default function ApplicationsView({ month, division, onSelectApp }: Props) {
   const [apps, setApps] = useState<ApplicationRisk[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetch(`/api/applications?month=${month}`)
       .then(r => r.json())
       .then((data: ApplicationRisk[]) => {
@@ -73,8 +76,17 @@ export default function ApplicationsView({ month, onSelectApp }: Props) {
           return gapB - gapA;
         });
         setApps(data);
+        setLoading(false);
       });
   }, [month]);
+
+  const visible = division === 'All' ? apps : apps.filter(a => a.division === division);
+
+  if (loading) return (
+    <div className="flex justify-center items-center h-40">
+      <div role="status" className="w-8 h-8 rounded-full border-2 border-gray-600 border-t-blue-400 animate-spin" />
+    </div>
+  );
 
   return (
     <div className="p-4">
@@ -89,7 +101,7 @@ export default function ApplicationsView({ month, onSelectApp }: Props) {
           </tr>
         </thead>
         <tbody>
-          {apps.map(app => (
+          {visible.map(app => (
             <tr
               key={app.id}
               className="border-b border-gray-800 hover:bg-gray-800 cursor-pointer"

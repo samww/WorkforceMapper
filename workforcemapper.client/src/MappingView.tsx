@@ -11,14 +11,15 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 interface MappingViewProps {
+  month: string;
+  division: string;
   onOpenChat?: () => void;
 }
 
-export default function MappingView({ onOpenChat }: MappingViewProps) {
+export default function MappingView({ month, division, onOpenChat }: MappingViewProps) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [month, setMonth] = useState(DEFAULT_MONTH);
-  const [division, setDivision] = useState('All');
+  const [loading, setLoading] = useState(true);
   const [unallocatedOnly, setUnallocatedOnly] = useState(false);
   const [zeroMonths, setZeroMonths] = useState<Set<string>>(new Set());
 
@@ -40,16 +41,17 @@ export default function MappingView({ onOpenChat }: MappingViewProps) {
   useEffect(() => { refreshZeroMonths(); }, []);
 
   useEffect(() => {
-    fetch(`/api/resources?month=${month}`)
-      .then((r) => r.json())
-      .then(setResources);
-    fetch('/api/activities')
-      .then((r) => r.json())
-      .then((data: Activity[]) => {
-        const projects = data.filter((a) => a.activity_type === 'Project').sort((a, b) => a.id - b.id);
-        const apps = data.filter((a) => a.activity_type !== 'Project').sort((a, b) => a.name.localeCompare(b.name));
-        setActivities([...projects, ...apps]);
-      });
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/resources?month=${month}`).then(r => r.json()),
+      fetch('/api/activities').then(r => r.json()),
+    ]).then(([resourceData, activityData]: [Resource[], Activity[]]) => {
+      setResources(resourceData);
+      const projects = activityData.filter(a => a.activity_type === 'Project').sort((a, b) => a.id - b.id);
+      const apps = activityData.filter(a => a.activity_type !== 'Project').sort((a, b) => a.name.localeCompare(b.name));
+      setActivities([...projects, ...apps]);
+      setLoading(false);
+    });
   }, [month]);
 
   const visible = resources.filter((r) => {
@@ -68,6 +70,12 @@ export default function MappingView({ onOpenChat }: MappingViewProps) {
     refreshZeroMonths();
   }
 
+  if (loading) return (
+    <div className="flex justify-center items-center h-40">
+      <div role="status" className="w-8 h-8 rounded-full border-2 border-gray-600 border-t-blue-400 animate-spin" />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -84,37 +92,6 @@ export default function MappingView({ onOpenChat }: MappingViewProps) {
         </div>
 
         <div className="flex flex-wrap gap-4 mb-6 items-center">
-          <div>
-            <label htmlFor="month-select" className="text-sm mr-2">Month</label>
-            <select
-              id="month-select"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-            >
-              {MONTH_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value} style={zeroMonths.has(o.value) ? { color: '#4b5563' } : undefined}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="division-select" aria-label="Division" className="text-sm mr-2">Division</label>
-            <select
-              id="division-select"
-              aria-label="Division"
-              value={division}
-              onChange={(e) => setDivision(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-            >
-              {DIVISIONS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
-
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
@@ -183,6 +160,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
   const [editActivityId, setEditActivityId] = useState('');
   const [editPercent, setEditPercent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const totalPct = resource.mappings.reduce((sum, m) => sum + m.percent, 0);
 
@@ -208,15 +186,17 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
       return;
     }
 
+    setSaving(true);
     if (newActId !== originalActivityId) {
       const del = await fetch(`/api/mappings?resource_id=${resource.id}&activity_id=${originalActivityId}&month=${month}`, { method: 'DELETE' });
-      if (!del.ok) { setError(await parseApiError(del, resource.name, month)); return; }
+      if (!del.ok) { setSaving(false); setError(await parseApiError(del, resource.name, month)); return; }
     }
     const res = await fetch('/api/mappings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ resource_id: resource.id, activity_id: newActId, month, percent: newPct }),
     });
+    setSaving(false);
     if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
     setEditingActivityId(null);
     onMappingChange();
@@ -233,6 +213,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
       return;
     }
 
+    setSaving(true);
     const res = await fetch('/api/mappings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -243,6 +224,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
         percent: pct,
       }),
     });
+    setSaving(false);
     if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
     setAdding(false);
     setNewActivityId('');
@@ -256,7 +238,9 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
       setError(`${resource.name} is not active in ${monthLabel(month)}`);
       return;
     }
+    setSaving(true);
     const res = await fetch(`/api/mappings?resource_id=${resource.id}&activity_id=${activityId}&month=${month}`, { method: 'DELETE' });
+    setSaving(false);
     if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
     onMappingChange();
   }
@@ -270,7 +254,10 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
           <p className="text-xs text-gray-400">{resource.resource_type} · {resource.country}</p>
           <p className="text-xs text-gray-500 mt-0.5">{resource.division}</p>
         </div>
-        <span className={`text-sm font-bold ${allocationColor(totalPct)}`}>{totalPct}%</span>
+        <div className="flex items-center gap-2">
+          {saving && <div role="status" className="w-4 h-4 rounded-full border-2 border-gray-600 border-t-blue-400 animate-spin" />}
+          <span className={`text-sm font-bold ${allocationColor(totalPct)}`}>{totalPct}%</span>
+        </div>
       </div>
 
       <AllocationBar percent={totalPct} mappings={resource.mappings} />

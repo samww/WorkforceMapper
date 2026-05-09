@@ -40,6 +40,8 @@ resources ──< mappings >── activities ──> applications ──< produ
 
 Default month: **`2026-05`**. This is the initial selected value only — the UI exposes a month dropdown so the user can switch months. Do not hardcode `2026-05` beyond the `DEFAULT_MONTH` constant that sets the initial state.
 
+Month and division filter state lives in `App.tsx` and is passed as props into all three tab views (`MappingView`, `ApplicationsView`, `ProductsView`). Each view accepts `{ month, division }` as props — do not re-introduce local state for these filters.
+
 ---
 
 ## Key Constraints
@@ -59,7 +61,7 @@ Default month: **`2026-05`**. This is the initial selected value only — the UI
 | GET | `/api/resources?month=` | Array with nested `mappings`; `active` reflects month flag |
 | GET | `/api/activities` | Full list |
 | GET | `/api/applications?month=` | Array with risk classification and coverage per application |
-| GET | `/api/products?month=` | Array with aggregated product risk and dependent ARR |
+| GET | `/api/products?month=` | Array with aggregated product risk and dependent ARR; each `contributing_apps` entry includes `division: string` |
 | PUT | `/api/mappings` | Body: `{ resource_id, activity_id, month, percent }`; 400 + `would_exceed_cap` or `resource_inactive_in_month` on violation |
 | DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404; 400 + `resource_inactive_in_month` if month is inactive for the resource |
 | POST | `/api/chat` | Body: `{ query, month }` → SSE stream of text tokens |
