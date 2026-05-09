@@ -22,3 +22,16 @@ public record ActivityDto(int id, string name, string activity_type, string divi
 public record UpsertMappingRequest(int resource_id, int activity_id, string month, decimal percent);
 
 public record ChatRequest(string Query, string? Month);
+
+public record ProductRefDto(int id, string name, decimal arr_usd);
+
+public record ApplicationRiskDto(
+    int id,
+    string name,
+    string division,
+    double min_support_fte,
+    double recommended_support_fte,
+    double current_coverage_fte,
+    string risk,
+    List<ProductRefDto> dependent_products
+);

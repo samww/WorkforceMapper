@@ -26,7 +26,7 @@ public class DataServiceTests
 
         var result = await service.GetActivitiesAsync();
 
-        Assert.Equal(33, result.Count);
+        Assert.Equal(48, result.Count);
     }
 
     [Fact]

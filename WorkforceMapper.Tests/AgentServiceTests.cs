@@ -109,7 +109,10 @@ public class AgentServiceTests
         var dataService = new DataService(ctx);
 
         var mock = new Mock<IClaudeClient>();
-        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+        // Streaming only runs after at least one tool-use round-trip.
+        // First call dispatches a tool; second call is the final end-turn that triggers streaming.
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_capacity_by_division", "tc_stream", @"{""month"":""2026-05""}"))
             .ReturnsAsync(EndTurnResponse());
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(TokenStream("Platform ", "Engineering ", "has 23 resources."));

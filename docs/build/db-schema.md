@@ -41,6 +41,9 @@ flowchart LR
 | `project_products` | Composite PK (project_id, product_id) |
 | `activities.application_id` | Nullable — null for project activities |
 | `activities.project_id` | Nullable — null for application activities |
+| `applications.min_support_fte` | REAL NOT NULL — added in #11; minimum FTE to avoid high risk |
+| `applications.recommended_support_fte` | REAL NOT NULL — added in #11; FTE at or above which risk is low |
+| `application_dependencies` | Composite PK (application_id, depends_on_application_id); both FKs DeleteBehavior.Restrict |
 
 ---
 
@@ -53,6 +56,7 @@ flowchart LR
 | product_applications | 26 | 3-5 dependent applications per product |
 | projects | 12 | One per project-change activity |
 | project_products | 26 | Several projects benefit multiple products |
-| activities | 33 | 10 PE / 9 Analytics / 8 Data Collection / 6 Client Services |
+| activities | 48 | 10 PE / 9 Analytics / 8 Data Collection / 6 Client Services (Support + Minor Changes per app) |
+| application_dependencies | 17 | Seeded via EF HasData; all 18 apps transitively depend on AuthService |
 | resources | 80 | Seeded from data/resources.json |
 | mappings | ~160 | Seeded from data/mappings.json; updated via UI |

@@ -441,9 +441,15 @@ namespace WorkforceMapper.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<double>("MinSupportFte")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<double>("RecommendedSupportFte")
+                        .HasColumnType("REAL");
 
                     b.HasKey("Id");
 
@@ -453,92 +459,230 @@ namespace WorkforceMapper.Server.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "CoreDataWarehouse"
+                            MinSupportFte = 2.0,
+                            Name = "CoreDataWarehouse",
+                            RecommendedSupportFte = 3.0
                         },
                         new
                         {
                             Id = 2,
-                            Name = "APIGateway"
+                            MinSupportFte = 1.5,
+                            Name = "APIGateway",
+                            RecommendedSupportFte = 2.5
                         },
                         new
                         {
                             Id = 3,
-                            Name = "SurveyEngine"
+                            MinSupportFte = 2.0,
+                            Name = "SurveyEngine",
+                            RecommendedSupportFte = 3.0
                         },
                         new
                         {
                             Id = 4,
-                            Name = "AuthService"
+                            MinSupportFte = 4.0,
+                            Name = "AuthService",
+                            RecommendedSupportFte = 5.0
                         },
                         new
                         {
                             Id = 5,
-                            Name = "ObservabilityStack"
+                            MinSupportFte = 1.0,
+                            Name = "ObservabilityStack",
+                            RecommendedSupportFte = 2.0
                         },
                         new
                         {
                             Id = 6,
-                            Name = "InsightHub"
+                            MinSupportFte = 1.5,
+                            Name = "InsightHub",
+                            RecommendedSupportFte = 2.5
                         },
                         new
                         {
                             Id = 7,
-                            Name = "DataMapper"
+                            MinSupportFte = 1.5,
+                            Name = "DataMapper",
+                            RecommendedSupportFte = 2.5
                         },
                         new
                         {
                             Id = 8,
-                            Name = "QuotaManager"
+                            MinSupportFte = 1.0,
+                            Name = "QuotaManager",
+                            RecommendedSupportFte = 1.5
                         },
                         new
                         {
                             Id = 9,
-                            Name = "SegmentBuilder"
+                            MinSupportFte = 1.0,
+                            Name = "SegmentBuilder",
+                            RecommendedSupportFte = 2.0
                         },
                         new
                         {
                             Id = 10,
-                            Name = "FieldOps"
+                            MinSupportFte = 2.0,
+                            Name = "FieldOps",
+                            RecommendedSupportFte = 3.0
                         },
                         new
                         {
                             Id = 11,
-                            Name = "WebCollect"
+                            MinSupportFte = 1.5,
+                            Name = "WebCollect",
+                            RecommendedSupportFte = 2.5
                         },
                         new
                         {
                             Id = 12,
-                            Name = "SampleRouter"
+                            MinSupportFte = 1.0,
+                            Name = "SampleRouter",
+                            RecommendedSupportFte = 1.5
                         },
                         new
                         {
                             Id = 13,
-                            Name = "CallCentre Suite"
+                            MinSupportFte = 1.0,
+                            Name = "CallCentre Suite",
+                            RecommendedSupportFte = 1.5
                         },
                         new
                         {
                             Id = 14,
-                            Name = "DiaryTracker"
+                            MinSupportFte = 1.0,
+                            Name = "DiaryTracker",
+                            RecommendedSupportFte = 2.0
                         },
                         new
                         {
                             Id = 15,
-                            Name = "ClientPortal"
+                            MinSupportFte = 1.5,
+                            Name = "ClientPortal",
+                            RecommendedSupportFte = 2.0
                         },
                         new
                         {
                             Id = 16,
-                            Name = "ReportFactory"
+                            MinSupportFte = 1.0,
+                            Name = "ReportFactory",
+                            RecommendedSupportFte = 1.5
                         },
                         new
                         {
                             Id = 17,
-                            Name = "DeliveryTracker"
+                            MinSupportFte = 1.0,
+                            Name = "DeliveryTracker",
+                            RecommendedSupportFte = 1.5
                         },
                         new
                         {
                             Id = 18,
-                            Name = "PanelIQ"
+                            MinSupportFte = 2.0,
+                            Name = "PanelIQ",
+                            RecommendedSupportFte = 3.0
+                        });
+                });
+
+            modelBuilder.Entity("WorkforceMapper.Server.Models.ApplicationDependency", b =>
+                {
+                    b.Property<int>("ApplicationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DependsOnApplicationId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ApplicationId", "DependsOnApplicationId");
+
+                    b.HasIndex("DependsOnApplicationId");
+
+                    b.ToTable("ApplicationDependencies");
+
+                    b.HasData(
+                        new
+                        {
+                            ApplicationId = 1,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 2,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 3,
+                            DependsOnApplicationId = 1
+                        },
+                        new
+                        {
+                            ApplicationId = 6,
+                            DependsOnApplicationId = 1
+                        },
+                        new
+                        {
+                            ApplicationId = 9,
+                            DependsOnApplicationId = 1
+                        },
+                        new
+                        {
+                            ApplicationId = 5,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 7,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 8,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 10,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 11,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 12,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 13,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 14,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 15,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 16,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 17,
+                            DependsOnApplicationId = 4
+                        },
+                        new
+                        {
+                            ApplicationId = 18,
+                            DependsOnApplicationId = 4
                         });
                 });
 
@@ -1131,6 +1275,25 @@ namespace WorkforceMapper.Server.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("WorkforceMapper.Server.Models.ApplicationDependency", b =>
+                {
+                    b.HasOne("WorkforceMapper.Server.Models.Application", "Application")
+                        .WithMany("Dependencies")
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WorkforceMapper.Server.Models.Application", "DependsOnApplication")
+                        .WithMany()
+                        .HasForeignKey("DependsOnApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Application");
+
+                    b.Navigation("DependsOnApplication");
+                });
+
             modelBuilder.Entity("WorkforceMapper.Server.Models.Mapping", b =>
                 {
                     b.HasOne("WorkforceMapper.Server.Models.Activity", "Activity")
@@ -1196,6 +1359,8 @@ namespace WorkforceMapper.Server.Migrations
             modelBuilder.Entity("WorkforceMapper.Server.Models.Application", b =>
                 {
                     b.Navigation("Activities");
+
+                    b.Navigation("Dependencies");
 
                     b.Navigation("ProductApplications");
                 });

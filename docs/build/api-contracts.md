@@ -40,11 +40,16 @@
   "min_support_fte": 4.0,
   "recommended_support_fte": 5.0,
   "current_coverage_fte": 3.0,
-  "risk": "high"
+  "risk": "high",
+  "dependent_products": [
+    { "id": 1, "name": "DataLicensing", "arr_usd": 6200000 }
+  ]
 }
 ```
 
 `risk` values: `"high"` | `"medium"` | `"low"`
+
+`dependent_products` — direct `product_applications` links only; foundational apps with no direct product mapping (e.g. AuthService) return `[]`. Transitive product risk propagation lands in #12.
 
 ### `ProductRiskDto`
 

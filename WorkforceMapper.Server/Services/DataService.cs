@@ -263,6 +263,47 @@ public class DataService(WorkforceDbContext context)
         return true;
     }
 
+    public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(string month)
+    {
+        var applications = await context.Applications
+            .Include(a => a.Activities)
+            .Include(a => a.ProductApplications)
+                .ThenInclude(pa => pa.Product)
+            .ToListAsync();
+
+        // Load support mappings with resource active flags in a single round-trip
+        var supportMappings = await context.Mappings
+            .Where(m => m.Month == month && m.Activity.ActivityType == "Support")
+            .Include(m => m.Resource)
+            .Include(m => m.Activity)
+            .ToListAsync();
+
+        var coverageByApp = supportMappings
+            .Where(m => GetMonthFlag(m.Resource, month) == 1)
+            .GroupBy(m => m.Activity.ApplicationId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(m => (double)m.Percent / 100.0));
+
+        return applications
+            .Select(app =>
+            {
+                var coverage = coverageByApp.TryGetValue(app.Id, out var c) ? c : 0.0;
+                var risk = RiskCalculator.ClassifyApplication(coverage, app.MinSupportFte, app.RecommendedSupportFte);
+                var division = app.Activities.FirstOrDefault()?.Division ?? "";
+                var products = app.ProductApplications
+                    .Select(pa => new ProductRefDto(pa.Product.Id, pa.Product.Name, pa.Product.ArrUsd))
+                    .OrderBy(p => p.name)
+                    .ToList();
+                return new ApplicationRiskDto(
+                    app.Id, app.Name, division,
+                    app.MinSupportFte, app.RecommendedSupportFte,
+                    coverage, risk.ToString().ToLowerInvariant(),
+                    products
+                );
+            })
+            .OrderBy(a => a.id)
+            .ToList();
+    }
+
     private static void AddCost(
         Dictionary<int, (string, decimal, decimal)> dict,
         int id, string name, decimal arr, decimal cost)

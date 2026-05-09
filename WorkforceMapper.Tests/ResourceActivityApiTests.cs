@@ -59,6 +59,69 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         Jun = 1, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
     };
 
+    // Support activity IDs from HasData seeding:
+    //  1=CDW-Sup, 3=APIGateway-Sup, 4=SurveyEngine-Sup, 5=AuthService-Sup, 6=ObsStack-Sup
+    // 11=InsightHub-Sup, 13=DataMapper-Sup, 14=QuotaManager-Sup, 15=SegmentBuilder-Sup
+    // 16=PanelIQ-Sup, 20=FieldOps-Sup, 21=WebCollect-Sup, 22=SampleRouter-Sup
+    // 23=CallCentre-Sup, 24=DiaryTracker-Sup, 28=ClientPortal-Sup, 29=ReportFactory-Sup, 31=DeliveryTracker-Sup
+    //
+    // Calibration for 2026-05:
+    //   AuthService   (app 4, act 5):  3 @ 100% = 3.0 FTE  [min=4.0 → HIGH]
+    //   SurveyEngine  (app 3, act 4):  2 @ 100% = 2.0 FTE  [min=2.0, rec=3.0 → MEDIUM]
+    //   PanelIQ       (app 18, act 16): 2 @ 100% = 2.0 FTE [min=2.0, rec=3.0 → MEDIUM]
+    //   DataMapper    (app 7, act 13): 2 @ 100% = 2.0 FTE  [min=1.5, rec=2.5 → MEDIUM]
+    //   Others: each mapped at >= rec → LOW
+    private static readonly (int activityId, int count, decimal pct)[] _applicationSeedMappings =
+    [
+        (5,  3, 100m), // AuthService: 3.0 FTE  → HIGH
+        (4,  2, 100m), // SurveyEngine: 2.0 FTE → MEDIUM
+        (16, 2, 100m), // PanelIQ: 2.0 FTE      → MEDIUM
+        (13, 2, 100m), // DataMapper: 2.0 FTE    → MEDIUM
+        (1,  3, 100m), // CDW: 3.0 FTE           → LOW (rec=3.0)
+        (3,  3, 100m), // APIGateway: 3.0 FTE    → LOW (rec=2.5)
+        (6,  2, 100m), // ObsStack: 2.0 FTE      → LOW (rec=2.0)
+        (11, 3, 100m), // InsightHub: 3.0 FTE    → LOW (rec=2.5)
+        (14, 2, 100m), // QuotaManager: 2.0 FTE  → LOW (rec=1.5)
+        (15, 2, 100m), // SegmentBuilder: 2.0 FTE → LOW (rec=2.0)
+        (20, 3, 100m), // FieldOps: 3.0 FTE      → LOW (rec=3.0)
+        (21, 3, 100m), // WebCollect: 3.0 FTE    → LOW (rec=2.5)
+        (22, 2, 100m), // SampleRouter: 2.0 FTE  → LOW (rec=1.5)
+        (23, 2, 100m), // CallCentre: 2.0 FTE    → LOW (rec=1.5)
+        (24, 2, 100m), // DiaryTracker: 2.0 FTE  → LOW (rec=2.0)
+        (28, 2, 100m), // ClientPortal: 2.0 FTE  → LOW (rec=2.0)
+        (29, 2, 100m), // ReportFactory: 2.0 FTE → LOW (rec=1.5)
+        (31, 2, 100m), // DeliveryTracker: 2.0 FTE → LOW (rec=1.5)
+    ];
+
+    public void SeedApplicationsTestData()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WorkforceDbContext>();
+        if (db.Resources.Any()) return;
+
+        var counter = 0;
+        foreach (var (activityId, count, pct) in _applicationSeedMappings)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                counter++;
+                var rid = $"AP{counter:00000}";
+                var resource = new Resource
+                {
+                    ResourceId = rid, Name = $"Resource {rid}", ResourceType = "Employee",
+                    Company = "Pragmenta", Seniority = "Analyst", RoleType = "Developer",
+                    Division = "Platform Engineering", Country = "UK", MonthlyRate = 9000m,
+                    Jan = 1, Feb = 1, Mar = 1, Apr = 1, May = 1,
+                    Jun = 1, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
+                };
+                db.Resources.Add(resource);
+                db.SaveChanges();
+                db.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = activityId, Month = "2026-05", Percent = pct });
+            }
+        }
+        db.SaveChanges();
+    }
+
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
@@ -133,7 +196,7 @@ public class ResourceActivityApiTests : IClassFixture<CustomWebApplicationFactor
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var items = await response.Content.ReadFromJsonAsync<JsonElement[]>();
         Assert.NotNull(items);
-        Assert.Equal(33, items.Length);
+        Assert.Equal(48, items.Length);
         var first = items[0];
         Assert.True(first.TryGetProperty("id", out _));
         Assert.True(first.TryGetProperty("activity_type", out _));
@@ -145,13 +208,13 @@ public class ResourceActivityApiTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetActivities_FiltersByActivityType()
     {
-        var response = await _client.GetAsync("/api/activities?activity_type=Project+Changes");
+        var response = await _client.GetAsync("/api/activities?activity_type=Project");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var items = await response.Content.ReadFromJsonAsync<JsonElement[]>();
         Assert.NotNull(items);
         Assert.True(items.Length > 0);
         Assert.All(items, a =>
-            Assert.Equal("Project Changes", a.GetProperty("activity_type").GetString()));
+            Assert.Equal("Project", a.GetProperty("activity_type").GetString()));
     }
 }

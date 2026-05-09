@@ -13,12 +13,20 @@ public class WorkforceDbContext(DbContextOptions<WorkforceDbContext> options) : 
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectProduct> ProjectProducts => Set<ProjectProduct>();
     public DbSet<Mapping> Mappings => Set<Mapping>();
+    public DbSet<ApplicationDependency> ApplicationDependencies => Set<ApplicationDependency>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Mapping>().HasKey(m => new { m.ResourceId, m.ActivityId, m.Month });
         modelBuilder.Entity<ProductApplication>().HasKey(pa => new { pa.ProductId, pa.ApplicationId });
         modelBuilder.Entity<ProjectProduct>().HasKey(pp => new { pp.ProjectId, pp.ProductId });
+        modelBuilder.Entity<ApplicationDependency>().HasKey(d => new { d.ApplicationId, d.DependsOnApplicationId });
+        modelBuilder.Entity<ApplicationDependency>()
+            .HasOne(d => d.Application).WithMany(a => a.Dependencies)
+            .HasForeignKey(d => d.ApplicationId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ApplicationDependency>()
+            .HasOne(d => d.DependsOnApplication).WithMany()
+            .HasForeignKey(d => d.DependsOnApplicationId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Resource>().HasIndex(r => r.ResourceId).IsUnique();
 
@@ -45,6 +53,7 @@ public class WorkforceDbContext(DbContextOptions<WorkforceDbContext> options) : 
             .HasOne(pp => pp.Product).WithMany(p => p.ProjectProducts).HasForeignKey(pp => pp.ProductId);
 
         SeedApplications(modelBuilder);
+        SeedApplicationDependencies(modelBuilder);
         SeedProducts(modelBuilder);
         SeedProductApplications(modelBuilder);
         SeedProjects(modelBuilder);
@@ -54,24 +63,48 @@ public class WorkforceDbContext(DbContextOptions<WorkforceDbContext> options) : 
 
     private static void SeedApplications(ModelBuilder m) =>
         m.Entity<Application>().HasData(
-            new { Id = 1,  Name = "CoreDataWarehouse" },
-            new { Id = 2,  Name = "APIGateway" },
-            new { Id = 3,  Name = "SurveyEngine" },
-            new { Id = 4,  Name = "AuthService" },
-            new { Id = 5,  Name = "ObservabilityStack" },
-            new { Id = 6,  Name = "InsightHub" },
-            new { Id = 7,  Name = "DataMapper" },
-            new { Id = 8,  Name = "QuotaManager" },
-            new { Id = 9,  Name = "SegmentBuilder" },
-            new { Id = 10, Name = "FieldOps" },
-            new { Id = 11, Name = "WebCollect" },
-            new { Id = 12, Name = "SampleRouter" },
-            new { Id = 13, Name = "CallCentre Suite" },
-            new { Id = 14, Name = "DiaryTracker" },
-            new { Id = 15, Name = "ClientPortal" },
-            new { Id = 16, Name = "ReportFactory" },
-            new { Id = 17, Name = "DeliveryTracker" },
-            new { Id = 18, Name = "PanelIQ" }
+            new { Id = 1,  Name = "CoreDataWarehouse",  MinSupportFte = 2.0, RecommendedSupportFte = 3.0 },
+            new { Id = 2,  Name = "APIGateway",         MinSupportFte = 1.5, RecommendedSupportFte = 2.5 },
+            new { Id = 3,  Name = "SurveyEngine",       MinSupportFte = 2.0, RecommendedSupportFte = 3.0 },
+            new { Id = 4,  Name = "AuthService",        MinSupportFte = 4.0, RecommendedSupportFte = 5.0 },
+            new { Id = 5,  Name = "ObservabilityStack", MinSupportFte = 1.0, RecommendedSupportFte = 2.0 },
+            new { Id = 6,  Name = "InsightHub",         MinSupportFte = 1.5, RecommendedSupportFte = 2.5 },
+            new { Id = 7,  Name = "DataMapper",         MinSupportFte = 1.5, RecommendedSupportFte = 2.5 },
+            new { Id = 8,  Name = "QuotaManager",       MinSupportFte = 1.0, RecommendedSupportFte = 1.5 },
+            new { Id = 9,  Name = "SegmentBuilder",     MinSupportFte = 1.0, RecommendedSupportFte = 2.0 },
+            new { Id = 10, Name = "FieldOps",           MinSupportFte = 2.0, RecommendedSupportFte = 3.0 },
+            new { Id = 11, Name = "WebCollect",         MinSupportFte = 1.5, RecommendedSupportFte = 2.5 },
+            new { Id = 12, Name = "SampleRouter",       MinSupportFte = 1.0, RecommendedSupportFte = 1.5 },
+            new { Id = 13, Name = "CallCentre Suite",   MinSupportFte = 1.0, RecommendedSupportFte = 1.5 },
+            new { Id = 14, Name = "DiaryTracker",       MinSupportFte = 1.0, RecommendedSupportFte = 2.0 },
+            new { Id = 15, Name = "ClientPortal",       MinSupportFte = 1.5, RecommendedSupportFte = 2.0 },
+            new { Id = 16, Name = "ReportFactory",      MinSupportFte = 1.0, RecommendedSupportFte = 1.5 },
+            new { Id = 17, Name = "DeliveryTracker",    MinSupportFte = 1.0, RecommendedSupportFte = 1.5 },
+            new { Id = 18, Name = "PanelIQ",            MinSupportFte = 2.0, RecommendedSupportFte = 3.0 }
+        );
+
+    private static void SeedApplicationDependencies(ModelBuilder m) =>
+        m.Entity<ApplicationDependency>().HasData(
+            // CoreDataWarehouse and APIGateway depend on AuthService
+            new { ApplicationId = 1,  DependsOnApplicationId = 4 },
+            new { ApplicationId = 2,  DependsOnApplicationId = 4 },
+            // Analytics apps depend on CoreDataWarehouse (which depends on AuthService)
+            new { ApplicationId = 3,  DependsOnApplicationId = 1 },
+            new { ApplicationId = 6,  DependsOnApplicationId = 1 },
+            new { ApplicationId = 9,  DependsOnApplicationId = 1 },
+            // Remaining apps depend directly on AuthService
+            new { ApplicationId = 5,  DependsOnApplicationId = 4 },
+            new { ApplicationId = 7,  DependsOnApplicationId = 4 },
+            new { ApplicationId = 8,  DependsOnApplicationId = 4 },
+            new { ApplicationId = 10, DependsOnApplicationId = 4 },
+            new { ApplicationId = 11, DependsOnApplicationId = 4 },
+            new { ApplicationId = 12, DependsOnApplicationId = 4 },
+            new { ApplicationId = 13, DependsOnApplicationId = 4 },
+            new { ApplicationId = 14, DependsOnApplicationId = 4 },
+            new { ApplicationId = 15, DependsOnApplicationId = 4 },
+            new { ApplicationId = 16, DependsOnApplicationId = 4 },
+            new { ApplicationId = 17, DependsOnApplicationId = 4 },
+            new { ApplicationId = 18, DependsOnApplicationId = 4 }
         );
 
     private static void SeedProducts(ModelBuilder m) =>
