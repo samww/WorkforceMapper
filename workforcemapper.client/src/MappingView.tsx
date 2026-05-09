@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import type { Resource, Activity, ResourceMapping } from './types';
 import AllocationBar from './AllocationBar';
 
-const DEFAULT_MONTH = '2026-05';
-const DIVISIONS = ['All', 'Platform Engineering', 'Analytics', 'Data Collection', 'Client Services'];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: `2026-${String(i + 1).padStart(2, '0')}`,
@@ -21,7 +19,7 @@ export default function MappingView({ month, division, onOpenChat }: MappingView
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [unallocatedOnly, setUnallocatedOnly] = useState(false);
-  const [zeroMonths, setZeroMonths] = useState<Set<string>>(new Set());
+  const [, setZeroMonths] = useState<Set<string>>(new Set());
 
   function refreshZeroMonths() {
     Promise.all(
