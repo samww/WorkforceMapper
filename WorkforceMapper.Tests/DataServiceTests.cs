@@ -102,6 +102,38 @@ public class DataServiceTests
         Assert.Equal(112m, pe.AllocationPct);
     }
 
+    // --- Cycle 10: regression — Unattributed line unchanged post risk feature ---
+
+    [Fact]
+    public async Task GetCostByProduct_Unattributed_LineIsUnchanged_PostRiskFeature()
+    {
+        // AuthService (app 4) has no product_applications entries, so support cost
+        // for resources mapped to AuthService is Unattributed. This must hold after #12.
+        await using var context = CreateContext();
+
+        var resource = new Resource
+        {
+            ResourceId = "UA00001", Name = "Unattrib Resource", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 10000m,
+            Jan = 1, Feb = 1, Mar = 1, Apr = 1, May = 1,
+            Jun = 1, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
+        };
+        context.Resources.Add(resource);
+        await context.SaveChangesAsync();
+
+        // Activity 5 = AuthService - Support (seeded); AuthService has no ProductApplications
+        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 5, Month = "2026-05", Percent = 100m });
+        await context.SaveChangesAsync();
+
+        var service = new DataService(context);
+        var summary = await service.GetCostByProductAsync("2026-05");
+
+        var unattributed = summary.Products.SingleOrDefault(p => p.ProductName == "Unattributed");
+        Assert.NotNull(unattributed);
+        Assert.Equal(10000m, unattributed.TotalAllocatedCost);
+    }
+
     [Fact]
     public async Task GetResources_Returns80Resources_WhenSeeded()
     {

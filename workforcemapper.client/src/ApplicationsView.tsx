@@ -4,6 +4,7 @@ export interface ProductRef {
   id: number;
   name: string;
   arr_usd: number;
+  risk?: 'high' | 'medium' | 'low';
 }
 
 export interface ApplicationRisk {

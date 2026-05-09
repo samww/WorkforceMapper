@@ -23,7 +23,20 @@ public record UpsertMappingRequest(int resource_id, int activity_id, string mont
 
 public record ChatRequest(string Query, string? Month);
 
-public record ProductRefDto(int id, string name, decimal arr_usd);
+public record ProductRefDto(int id, string name, decimal arr_usd, string? risk = null);
+
+public record ContributingAppDto(int id, string name, string risk);
+
+public record DirectAppNodeDto(int id, string name, string risk, List<ContributingAppDto> dependencies);
+
+public record ProductRiskDto(
+    int id,
+    string name,
+    decimal arr,
+    string risk,
+    List<ContributingAppDto> contributing_apps,
+    List<DirectAppNodeDto> direct_apps
+);
 
 public record ApplicationRiskDto(
     int id,

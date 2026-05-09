@@ -42,14 +42,14 @@
   "current_coverage_fte": 3.0,
   "risk": "high",
   "dependent_products": [
-    { "id": 1, "name": "DataLicensing", "arr_usd": 6200000 }
+    { "id": 1, "name": "DataLicensing", "arr_usd": 6200000, "risk": "high" }
   ]
 }
 ```
 
 `risk` values: `"high"` | `"medium"` | `"low"`
 
-`dependent_products` — direct `product_applications` links only; foundational apps with no direct product mapping (e.g. AuthService) return `[]`. Transitive product risk propagation lands in #12.
+`dependent_products` — direct `product_applications` links only; foundational apps with no direct product mapping (e.g. AuthService) return `[]`. Each entry now includes a `risk` field (product max-wins risk, added in #12).
 
 ### `ProductRiskDto`
 
@@ -61,11 +61,21 @@
   "risk": "high",
   "contributing_apps": [
     { "id": 1, "name": "AuthService", "risk": "high" }
+  ],
+  "direct_apps": [
+    {
+      "id": 5, "name": "InsightHub", "risk": "low",
+      "dependencies": [
+        { "id": 1, "name": "CoreDataWarehouse", "risk": "low" }
+      ]
+    }
   ]
 }
 ```
 
-`contributing_apps` capped at 10 entries, ordered by risk desc then name asc.
+`contributing_apps` — flat list of all apps in the transitive closure, capped at 10 entries, ordered by risk desc then name asc.
+
+`direct_apps` — tree-structured list for UI rendering: each entry is a direct app (from `product_applications`) with its 1-hop `dependencies` (from `application_dependencies`). Depth capped at 2 levels below the product root. Both lists ordered by risk desc then name asc.
 
 ### Mapping rejection body
 

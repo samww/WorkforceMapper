@@ -1,5 +1,11 @@
 import type { ApplicationRisk } from './ApplicationsView';
 
+const BADGE: Record<string, string> = {
+  high: 'bg-red-600 text-white',
+  medium: 'bg-amber-500 text-white',
+  low: 'bg-green-600 text-white',
+};
+
 function formatArr(usd: number) {
   return `$${(usd / 1_000_000).toFixed(1)}m`;
 }
@@ -52,14 +58,22 @@ export default function ApplicationDetail({ app, onBack }: Props) {
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-700">
                 <th className="pb-2 pr-4">Product</th>
-                <th className="pb-2">ARR</th>
+                <th className="pb-2 pr-4">ARR</th>
+                <th className="pb-2">Risk</th>
               </tr>
             </thead>
             <tbody>
               {app.dependent_products.map(p => (
                 <tr key={p.id} className="border-b border-gray-800">
                   <td className="py-2 pr-4">{p.name}</td>
-                  <td className="py-2 text-gray-400">{formatArr(p.arr_usd)}</td>
+                  <td className="py-2 text-gray-400 pr-4">{formatArr(p.arr_usd)}</td>
+                  <td className="py-2">
+                    {p.risk && (
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${BADGE[p.risk]}`}>
+                        {p.risk}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

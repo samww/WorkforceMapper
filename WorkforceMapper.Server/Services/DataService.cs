@@ -263,6 +263,91 @@ public class DataService(WorkforceDbContext context)
         return true;
     }
 
+    public async Task<List<ProductRiskDto>> GetProductRiskAsync(string month, int? productId = null)
+    {
+        var appRisks = await GetApplicationsAsync(month);
+        var riskByAppId = appRisks.ToDictionary(a => a.id, a =>
+            Enum.Parse<RiskLevel>(a.risk, ignoreCase: true));
+
+        var edges = await context.ApplicationDependencies
+            .Select(d => new { d.ApplicationId, d.DependsOnApplicationId })
+            .ToListAsync();
+        var productApps = await context.ProductApplications
+            .Select(pa => new { pa.ProductId, pa.ApplicationId })
+            .ToListAsync();
+
+        var graph = new DependencyGraph(
+            edges.Select(e => (e.ApplicationId, e.DependsOnApplicationId)),
+            productApps.Select(pa => (pa.ProductId, pa.ApplicationId)));
+
+        var products = await context.Products.ToListAsync();
+        if (productId.HasValue)
+            products = products.Where(p => p.Id == productId.Value).ToList();
+
+        var paByProduct = productApps
+            .GroupBy(pa => pa.ProductId)
+            .ToDictionary(g => g.Key, g => g.Select(pa => pa.ApplicationId).ToHashSet());
+
+        // One-hop neighbours per app for the depth-2 tree
+        var directDepsOfApp = edges
+            .GroupBy(e => e.ApplicationId)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.DependsOnApplicationId).ToList());
+
+        string RiskStr(int appId) =>
+            (riskByAppId.TryGetValue(appId, out var r) ? r : RiskLevel.Low).ToString().ToLowerInvariant();
+
+        string AppName(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.name ?? "";
+
+        return products.Select(product =>
+        {
+            var directAppIds = paByProduct.TryGetValue(product.Id, out var d) ? d : [];
+            var closure = new HashSet<int>(directAppIds);
+            foreach (var appId in directAppIds)
+                foreach (var dep in graph.TransitiveDependenciesOf(appId))
+                    closure.Add(dep);
+
+            var contributing = closure
+                .Select(id => new { id, risk = riskByAppId.TryGetValue(id, out var r) ? r : RiskLevel.Low, name = AppName(id) })
+                .Where(a => a.name != "")
+                .OrderByDescending(a => a.risk)
+                .ThenBy(a => a.name)
+                .Take(10)
+                .Select(a => new ContributingAppDto(a.id, a.name, a.risk.ToString().ToLowerInvariant()))
+                .ToList();
+
+            var maxRisk = closure
+                .Select(id => riskByAppId.TryGetValue(id, out var r) ? r : RiskLevel.Low)
+                .Aggregate(RiskLevel.Low, (acc, r) => r > acc ? r : acc);
+
+            var directAppNodes = directAppIds
+                .Select(appId =>
+                {
+                    var deps = (directDepsOfApp.TryGetValue(appId, out var depList) ? depList : [])
+                        .Where(depId => AppName(depId) != "")
+                        .Select(depId => new ContributingAppDto(depId, AppName(depId), RiskStr(depId)))
+                        .OrderByDescending(a => a.risk)
+                        .ThenBy(a => a.name)
+                        .ToList();
+                    return new DirectAppNodeDto(appId, AppName(appId), RiskStr(appId), deps);
+                })
+                .Where(a => a.name != "")
+                .OrderByDescending(a => a.risk)
+                .ThenBy(a => a.name)
+                .ToList();
+
+            return new ProductRiskDto(
+                product.Id,
+                product.Name,
+                product.ArrUsd,
+                maxRisk.ToString().ToLowerInvariant(),
+                contributing,
+                directAppNodes
+            );
+        })
+        .OrderBy(p => p.id)
+        .ToList();
+    }
+
     public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(string month)
     {
         var applications = await context.Applications
@@ -271,7 +356,6 @@ public class DataService(WorkforceDbContext context)
                 .ThenInclude(pa => pa.Product)
             .ToListAsync();
 
-        // Load support mappings with resource active flags in a single round-trip
         var supportMappings = await context.Mappings
             .Where(m => m.Month == month && m.Activity.ActivityType == "Support")
             .Include(m => m.Resource)
@@ -283,14 +367,54 @@ public class DataService(WorkforceDbContext context)
             .GroupBy(m => m.Activity.ApplicationId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(m => (double)m.Percent / 100.0));
 
+        var appRiskById = applications.ToDictionary(
+            app => app.Id,
+            app =>
+            {
+                var cov = coverageByApp.TryGetValue(app.Id, out var c) ? c : 0.0;
+                return RiskCalculator.ClassifyApplication(cov, app.MinSupportFte, app.RecommendedSupportFte);
+            });
+
+        var edges = await context.ApplicationDependencies
+            .Select(d => new { d.ApplicationId, d.DependsOnApplicationId })
+            .ToListAsync();
+        var productApps = await context.ProductApplications
+            .Select(pa => new { pa.ProductId, pa.ApplicationId })
+            .ToListAsync();
+
+        var graph = new DependencyGraph(
+            edges.Select(e => (e.ApplicationId, e.DependsOnApplicationId)),
+            productApps.Select(pa => (pa.ProductId, pa.ApplicationId)));
+
+        var paByProduct = productApps
+            .GroupBy(pa => pa.ProductId)
+            .ToDictionary(g => g.Key, g => g.Select(pa => pa.ApplicationId).ToHashSet());
+
+        RiskLevel ProductRiskFor(int productId)
+        {
+            var directApps = paByProduct.TryGetValue(productId, out var d) ? d : [];
+            var closure = new HashSet<int>(directApps);
+            foreach (var appId in directApps)
+                foreach (var dep in graph.TransitiveDependenciesOf(appId))
+                    closure.Add(dep);
+            return closure
+                .Select(id => appRiskById.TryGetValue(id, out var r) ? r : RiskLevel.Low)
+                .Aggregate(RiskLevel.Low, (acc, r) => r > acc ? r : acc);
+        }
+
         return applications
             .Select(app =>
             {
                 var coverage = coverageByApp.TryGetValue(app.Id, out var c) ? c : 0.0;
-                var risk = RiskCalculator.ClassifyApplication(coverage, app.MinSupportFte, app.RecommendedSupportFte);
+                var risk = appRiskById[app.Id];
                 var division = app.Activities.FirstOrDefault()?.Division ?? "";
                 var products = app.ProductApplications
-                    .Select(pa => new ProductRefDto(pa.Product.Id, pa.Product.Name, pa.Product.ArrUsd))
+                    .Select(pa =>
+                    {
+                        var pRisk = ProductRiskFor(pa.Product.Id);
+                        return new ProductRefDto(pa.Product.Id, pa.Product.Name, pa.Product.ArrUsd,
+                            pRisk.ToString().ToLowerInvariant());
+                    })
                     .OrderBy(p => p.name)
                     .ToList();
                 return new ApplicationRiskDto(
