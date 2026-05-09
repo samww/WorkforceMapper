@@ -278,10 +278,13 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
               </select>
               <div className="flex gap-2 items-center">
                 <input
-                  type="text"
-                  inputMode="numeric"
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="100"
                   value={editPercent}
-                  onChange={(e) => setEditPercent(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                  onChange={(e) => setEditPercent(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={(e) => { if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault(); }}
                   className="bg-gray-700 border border-gray-600 rounded px-2 py-1 w-20"
                 />
                 <button
@@ -336,10 +339,13 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
           </select>
           <div className="flex gap-2">
             <input
-              type="text"
-              inputMode="numeric"
+              type="number"
+              step="1"
+              min="1"
+              max="100"
               value={newPercent}
-              onChange={(e) => setNewPercent(e.target.value.replace(/\D/g, '').slice(0, 3))}
+              onChange={(e) => setNewPercent(e.target.value.replace(/[^0-9]/g, ''))}
+              onKeyDown={(e) => { if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault(); }}
               placeholder="%"
               className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs w-20"
             />

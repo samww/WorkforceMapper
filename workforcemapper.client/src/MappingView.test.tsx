@@ -90,7 +90,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
 
-    const percentInput = within(aliceCard).getByRole('textbox');
+    const percentInput = within(aliceCard).getByRole('spinbutton');
     expect((percentInput as HTMLInputElement).value).toBe('60');
   });
 
@@ -210,7 +210,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
 
-    const percentInput = within(aliceCard).getByRole('textbox');
+    const percentInput = within(aliceCard).getByRole('spinbutton');
     await userEvent.clear(percentInput);
     await userEvent.type(percentInput, '80');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^save$/i }));
@@ -223,5 +223,97 @@ describe('MappingView', () => {
     expect(body.resource_id).toBe(1);
     expect(body.activity_id).toBe(1);
     expect(body.percent).toBe(80);
+  });
+
+  it('edit percent input is type=number with step=1 min=1 max=100', async () => {
+    mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
+
+    const percentInput = within(aliceCard).getByRole('spinbutton');
+    expect(percentInput).toHaveAttribute('type', 'number');
+    expect(percentInput).toHaveAttribute('step', '1');
+    expect(percentInput).toHaveAttribute('min', '1');
+    expect(percentInput).toHaveAttribute('max', '100');
+  });
+
+  it('add percent input is type=number with step=1 min=1 max=100', async () => {
+    mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+
+    const percentInput = within(aliceCard).getByPlaceholderText('%');
+    expect(percentInput).toHaveAttribute('type', 'number');
+    expect(percentInput).toHaveAttribute('step', '1');
+    expect(percentInput).toHaveAttribute('min', '1');
+    expect(percentInput).toHaveAttribute('max', '100');
+  });
+
+  it('dot character cannot be typed into the add percent input', async () => {
+    mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+
+    const percentInput = within(aliceCard).getByPlaceholderText('%');
+    await userEvent.type(percentInput, '5.5');
+
+    expect((percentInput as HTMLInputElement).value).not.toContain('.');
+  });
+
+  it('dot character cannot be typed into the edit percent input', async () => {
+    mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
+
+    const percentInput = within(aliceCard).getByRole('spinbutton');
+    await userEvent.clear(percentInput);
+    await userEvent.type(percentInput, '5.5');
+
+    expect((percentInput as HTMLInputElement).value).not.toContain('.');
+  });
+
+  it('letter characters are rejected from the add percent input', async () => {
+    mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+
+    const percentInput = within(aliceCard).getByPlaceholderText('%');
+    await userEvent.type(percentInput, '55');
+    await userEvent.type(percentInput, 'abc');
+
+    expect((percentInput as HTMLInputElement).value).not.toMatch(/[a-zA-Z]/);
+    expect((percentInput as HTMLInputElement).value).toBe('55');
+  });
+
+  it('letter characters are rejected from the edit percent input', async () => {
+    mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
+
+    const percentInput = within(aliceCard).getByRole('spinbutton');
+    await userEvent.clear(percentInput);
+    await userEvent.type(percentInput, '40');
+    await userEvent.type(percentInput, 'xyz');
+
+    expect((percentInput as HTMLInputElement).value).not.toMatch(/[a-zA-Z]/);
+    expect((percentInput as HTMLInputElement).value).toBe('40');
   });
 });
