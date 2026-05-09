@@ -2,8 +2,6 @@
 
 Pragmenta Insights workforce capacity tool. Resources (employees, contractors, vendors) are mapped to activities at a percentage allocation per month. The AI layer lets users query capacity, cost, and risk in natural language.
 
-**Fictional company. Any resemblance to real organisations is coincidental.**
-
 ---
 
 ## Glossary
@@ -40,7 +38,7 @@ resources ──< mappings >── activities ──> applications ──< produ
 - **products** — 7; $28.9m total ARR; all 7 transitively depend on AuthService
 - **applications** — 18 (`min_support_fte` and `recommended_support_fte` thresholds per application); **projects** — 12; join tables: `product_applications` (26), `project_products` (26), `application_dependencies` (directed dependency edges used for risk propagation, not cost attribution)
 
-Default month: **`2026-05`**. Hardcode as a constant throughout.
+Default month: **`2026-05`**. This is the initial selected value only — the UI exposes a month dropdown so the user can switch months. Do not hardcode `2026-05` beyond the `DEFAULT_MONTH` constant that sets the initial state.
 
 ---
 
@@ -72,5 +70,4 @@ Default month: **`2026-05`**. Hardcode as a constant throughout.
 
 - **Backend:** ASP.NET Core (.NET 10), C#, EF Core + SQLite, `Anthropic.SDK` (`claude-haiku-4-5-20251001`)
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Vitest + RTL
-- **Hosting:** Azure Container Apps, Azure AD Easy Auth, Docker multi-stage (Node 22 → .NET 10)
 
