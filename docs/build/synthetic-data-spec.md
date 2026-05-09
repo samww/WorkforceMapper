@@ -10,9 +10,10 @@
 
 | Scenario | Expected value |
 |---|---|
-| Platform Engineering allocation | ~112% (over-allocated) |
-| Data Collection idle cost | ~$18k/month |
+| Platform Engineering allocation | 100% (fully booked — zero headroom) |
+| Data Collection idle cost | ~$5,670/month (3 Survey Ops bench at 55%) |
 | AuthService Replacement allocated | ~$28k/month vs ~$42k/month needed |
+| AuthService Support coverage | 3.0 FTE (HIGH risk — min threshold 4.0) |
 | ARR transitively exposed via AuthService | $28.9m (all 7 products) |
 | Unattributed monthly cost | ~$70k/month |
 
@@ -246,7 +247,7 @@ Together these produce approximately **$52k–$70k/month of deliberate unattribu
 
 The numbers below are the *intended* allocated monthly cost per activity once mapping is complete. They produce the per-division allocation percentages and project shortfall scenarios listed below. Application Support and Application Minor Changes totals per app reconcile to `product-portfolio-rag`'s `annual_cost_workforce` divided by 12.
 
-**Platform Engineering** ($259k of work allocated against $231k resource pool → ~112%)
+**Platform Engineering** ($231k of work allocated against $231k resource pool → 100%, zero headroom — hard cap enforced via issue #13)
 - CoreDataWarehouse — Application Support: ~$42k
 - CoreDataWarehouse — Application Minor Changes: ~$12k
 - APIGateway — Application Support: ~$23k
@@ -269,7 +270,7 @@ The numbers below are the *intended* allocated monthly cost per activity once ma
 - Real-Time Analytics Initiative: ~$27k
 - SegmentBuilder Enhancement: ~$22k
 
-**Data Collection** ($111k of work allocated against $129k resource pool → ~86%, ~$18k idle)
+**Data Collection** ($119k of work allocated against $125k resource pool → ~95%, ~$5,670 idle)
 - FieldOps — Application Support: ~$22k
 - WebCollect — Application Support: ~$20k
 - SampleRouter — Application Support: ~$18k
@@ -290,11 +291,11 @@ The numbers below are the *intended* allocated monthly cost per activity once ma
 
 ### Intentional data scenarios (designed to make queries interesting)
 
-**Over-allocation — Platform Engineering (~112%)**
-AuthService carries a double load: `AuthService — Application Support` is consuming elevated capacity (incidents and manual workarounds due to upcoming vendor EOL), and `AuthService Replacement` needs substantial resource but is under-staffed. The specialist Java and security skill set spans both activities. Several Meridian Systems vendor resources are on fixed-scope contracts that cannot be extended. Total Platform Engineering allocation ~112% when `get_capacity_by_division` is called.
+**Fully booked — Platform Engineering (100%, zero headroom)**
+AuthService carries a double load: `AuthService — Application Support` is consuming elevated capacity (incidents and manual workarounds due to upcoming vendor EOL), and `AuthService Replacement` needs substantial resource but is under-staffed. The specialist Java and security skill set spans both activities. PE is fully committed at 100% — any capacity shift for AuthService requires explicitly reducing another activity. Note: the hard cap (issue #13) prevents seeding over 100%; the original ~112% over-allocation scenario has been retired. The story is now "maxed with no slack" rather than "over-allocated".
 
-**Bench capacity — Data Collection (~86%, ~$18k/month idle)**
-The `CallCentre Suite — Application Support` team has partially stood down as telephony processes were automated in Q1. The replacement project has not yet ramped. Three Survey Operations Specialists in Poland are fully active on the budget (monthly_rate billing) but allocated to less than 100% of activities — approximately $18,000/month of idle monthly cost. Total Data Collection allocation ~86%.
+**Bench capacity — Data Collection (~$5,670/month idle)**
+The `CallCentre Suite — Application Support` team has partially stood down as telephony processes were automated in Q1. The replacement project has not yet ramped. Three Survey Operations Specialists in Poland (PI00056–PI00058, $4,200/month each) are active on the budget but allocated to only 55% of activities — approximately $5,670/month of idle monthly cost. Note: the original ~$18k target was mathematically inconsistent with the $4,200 Poland Analyst rate (max possible idle from 3 resources = $12,600). Figure revised to reflect actual seed data.
 
 **Run-heavy Analytics (~68% Application Support + Minor Changes / ~32% Project Changes)**
 Most Analytics resources are mapped to `InsightHub`, `DataMapper`, `QuotaManager`, `SegmentBuilder`, and `PanelIQ` Application Support. The `ML Forecasting Platform` project is strategically important but under-resourced — approximately $20,000/month allocated vs ~$30,000/month implied need. This creates a striking answer to "what's the Application Support vs Project Changes spend in Analytics?"
@@ -302,11 +303,11 @@ Most Analytics resources are mapped to `InsightHub`, `DataMapper`, `QuotaManager
 **AuthService Replacement shortfall — the centrepiece scenario**
 The `AuthService Replacement` project has approximately $28,000/month of resource cost mapped to it, against an implied need of ~$42,000/month to hit the completion deadline before vendor EOL — a $14,000/month shortfall. AuthService is a transitive dependency for **DataLicensing ($6.2m ARR — Pragmenta Insights' highest-revenue product and the centrepiece of `product-portfolio-rag`)** and for the other 6 in-scope products. **Total ARR transitively exposed: $28.9m**.
 
-This is the connective tissue between the two projects: the same AuthService that `product-portfolio-rag` flags as Critical risk (vendor EOL Q2 2026, no renewal path) is shown here to have an under-resourced replacement programme — and because no other Platform Engineering capacity exists (allocation already at 112%), there is no obvious place to find the missing $14k/month.
+This is the connective tissue between the two projects: the same AuthService that `product-portfolio-rag` flags as Critical risk (vendor EOL Q2 2026, no renewal path) is shown here to have an under-resourced replacement programme — and because PE is fully booked at 100% with no headroom, any capacity shift requires explicitly de-prioritising another activity (e.g. DevPortal Rebuild or Security & Compliance) to free the missing $14k/month.
 
 **5 resources with < 100% allocation**
-- 3 in Data Collection (CallCentre transition bench — Poland-based Survey Operations Specialists, ~$4,200/month each)
-- 2 in Analytics (recent Associate hires in India, joined in Q2, not yet mapped to activities)
+- 3 in Data Collection (CallCentre transition bench — PI00056–PI00058, Poland-based Survey Operations Specialists, $4,200/month each, 55% allocated → $1,890/month idle each)
+- 2 in Analytics (PI00038–PI00039, recent Associate hires in India, joined in Q2, 0% allocated → fully idle at $2,800/month each)
 
 These surface in the `get_unallocated_resources` tool response, including their idle monthly cost.
 

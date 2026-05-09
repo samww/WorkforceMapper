@@ -25,4 +25,21 @@ public class Resource
     public int Nov { get; set; }
     public int Dec { get; set; }
     public ICollection<Mapping> Mappings { get; set; } = [];
+
+    public bool IsActiveIn(string month) => month[5..] switch
+    {
+        "01" => Jan == 1,
+        "02" => Feb == 1,
+        "03" => Mar == 1,
+        "04" => Apr == 1,
+        "05" => May == 1,
+        "06" => Jun == 1,
+        "07" => Jul == 1,
+        "08" => Aug == 1,
+        "09" => Sep == 1,
+        "10" => Oct == 1,
+        "11" => Nov == 1,
+        "12" => Dec == 1,
+        _ => false
+    };
 }

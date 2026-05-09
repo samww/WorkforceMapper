@@ -36,7 +36,7 @@ flowchart LR
 |---|---|
 | `resources` | `resource_id` UNIQUE — stable text identifier e.g. PI00123 |
 | `mappings` | Composite PK (resource_id, activity_id, month) |
-| `mappings.percent` | Advisory only — no DB CHECK; UI shows red over-allocation indicator. API accepts any value. |
+| `mappings.percent` | Hard cap enforced at API layer. PUT/DELETE reject with 400 + structured reason on cap or inactive-month violations (issue #13). No DB CHECK constraint. |
 | `product_applications` | Composite PK (product_id, application_id) |
 | `project_products` | Composite PK (project_id, product_id) |
 | `activities.application_id` | Nullable — null for project activities |

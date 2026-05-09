@@ -10,7 +10,7 @@ function makeSSEStream(...tokens: string[]) {
   return new ReadableStream<Uint8Array>({
     start(controller) {
       for (const token of tokens) {
-        controller.enqueue(encoder.encode(`data: ${token}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(token)}\n\n`));
       }
       controller.enqueue(encoder.encode('data: [DONE]\n\n'));
       controller.close();

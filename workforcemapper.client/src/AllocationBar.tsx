@@ -6,7 +6,6 @@ interface Props {
 }
 
 function barColor(pct: number) {
-  if (pct > 100) return 'bg-red-500';
   if (pct >= 80) return 'bg-amber-400';
   return 'bg-green-500';
 }

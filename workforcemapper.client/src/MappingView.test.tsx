@@ -96,6 +96,81 @@ describe('MappingView', () => {
     expect((percentInput as HTMLInputElement).value).toBe('60');
   });
 
+  it('shows reason-specific toast when cap exceeded on add', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url, opts) => {
+      const u = String(url);
+      if (u.includes('/api/resources')) return Promise.resolve({ ok: true, json: () => Promise.resolve(RESOURCES) } as Response);
+      if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
+      if ((opts as RequestInit)?.method === 'PUT') {
+        return Promise.resolve({
+          ok: false, status: 400,
+          json: () => Promise.resolve({ error: 'would_exceed_cap' }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    render(<MappingView />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '50');
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
+
+    expect(await within(aliceCard).findByText(/Cannot allocate more than 100%/)).toBeInTheDocument();
+  });
+
+  it('shows reason-specific toast when resource inactive on add', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url, opts) => {
+      const u = String(url);
+      if (u.includes('/api/resources')) return Promise.resolve({ ok: true, json: () => Promise.resolve(RESOURCES) } as Response);
+      if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
+      if ((opts as RequestInit)?.method === 'PUT') {
+        return Promise.resolve({
+          ok: false, status: 400,
+          json: () => Promise.resolve({ error: 'resource_inactive_in_month' }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    render(<MappingView />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '50');
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
+
+    expect(await within(aliceCard).findByText(/is not active in/)).toBeInTheDocument();
+  });
+
+  it('blocks submission client-side when resource is inactive', async () => {
+    const inactiveResources = [{ ...RESOURCES[0], active: false }];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url, opts) => {
+      const u = String(url);
+      if (u.includes('/api/resources')) return Promise.resolve({ ok: true, json: () => Promise.resolve(inactiveResources) } as Response);
+      if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    render(<MappingView />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '50');
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
+
+    expect(await within(aliceCard).findByText(/is not active in/)).toBeInTheDocument();
+    const putCalls = fetchSpy.mock.calls.filter(([, opts]) => (opts as RequestInit)?.method === 'PUT');
+    expect(putCalls).toHaveLength(0);
+  });
+
   it('saving the edit form PUTs the updated mapping', async () => {
     const fetchSpy = mockFetch();
     render(<MappingView />);

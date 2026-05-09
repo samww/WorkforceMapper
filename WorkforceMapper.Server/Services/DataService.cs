@@ -244,6 +244,14 @@ public class DataService(WorkforceDbContext context)
             .ToList();
     }
 
+    public async Task<Resource?> GetResourceByPkAsync(int id) =>
+        await context.Resources.FindAsync(id);
+
+    public async Task<List<Mapping>> GetMappingsForResourceMonthAsync(int resourceId, string month) =>
+        await context.Mappings
+            .Where(m => m.ResourceId == resourceId && m.Month == month)
+            .ToListAsync();
+
     public async Task UpsertMappingAsync(int resourceId, int activityId, string month, decimal percent)
     {
         var existing = await context.Mappings.FindAsync(resourceId, activityId, month);

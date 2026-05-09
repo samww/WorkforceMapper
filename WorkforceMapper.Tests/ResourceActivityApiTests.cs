@@ -38,7 +38,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             MakeResource("PI00002", "Bob", "Platform Engineering"),
             MakeResource("PI00003", "Carol", "Platform Engineering"),
             MakeResource("PI00004", "Dave", "Analytics"),
-            MakeResource("PI00005", "Eve", "Analytics")
+            MakeResource("PI00005", "Eve", "Analytics"),
+            MakeResource("PI00006", "Frank", "Platform Engineering", jun: 0)
         );
         db.SaveChanges();
 
@@ -50,13 +51,13 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         db.SaveChanges();
     }
 
-    private static Resource MakeResource(string rid, string name, string division) => new()
+    private static Resource MakeResource(string rid, string name, string division, int jun = 1) => new()
     {
         ResourceId = rid, Name = name, ResourceType = "Employee",
         Company = "Pragmenta", Seniority = "Analyst", RoleType = "Developer",
         Division = division, Country = "UK", MonthlyRate = 9000m,
         Jan = 1, Feb = 1, Mar = 1, Apr = 1, May = 1,
-        Jun = 1, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
+        Jun = jun, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
     };
 
     // Support activity IDs from HasData seeding:
@@ -164,7 +165,7 @@ public class ResourceActivityApiTests : IClassFixture<CustomWebApplicationFactor
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var items = await response.Content.ReadFromJsonAsync<JsonElement[]>();
         Assert.NotNull(items);
-        Assert.Equal(5, items.Length);
+        Assert.Equal(6, items.Length);
         var first = items[0];
         Assert.True(first.TryGetProperty("resource_id", out _));
         Assert.True(first.TryGetProperty("active", out _));
@@ -181,7 +182,7 @@ public class ResourceActivityApiTests : IClassFixture<CustomWebApplicationFactor
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var items = await response.Content.ReadFromJsonAsync<JsonElement[]>();
         Assert.NotNull(items);
-        Assert.Equal(3, items.Length);
+        Assert.Equal(4, items.Length);
         Assert.All(items, r =>
             Assert.Equal("Platform Engineering", r.GetProperty("division").GetString()));
     }

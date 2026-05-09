@@ -154,9 +154,25 @@ interface CardProps {
 }
 
 function allocationColor(pct: number) {
-  if (pct > 100) return 'text-red-400';
   if (pct >= 90) return 'text-amber-400';
   return 'text-green-400';
+}
+
+function monthLabel(month: string) {
+  return MONTH_OPTIONS.find((o) => o.value === month)?.label ?? month;
+}
+
+async function parseApiError(res: Response, resourceName: string, month: string): Promise<string> {
+  if (res.status === 400) {
+    try {
+      const body = await res.json();
+      if (body.error === 'would_exceed_cap')
+        return `Cannot allocate more than 100% to ${resourceName} in ${monthLabel(month)}`;
+      if (body.error === 'resource_inactive_in_month')
+        return `${resourceName} is not active in ${monthLabel(month)}`;
+    } catch { /* ignore */ }
+  }
+  return 'Save failed';
 }
 
 function ResourceCard({ resource, activities, month, onMappingChange }: CardProps) {
@@ -187,16 +203,21 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
     if (newPct < 1 || newPct > 100) return;
     setError(null);
 
+    if (!resource.active) {
+      setError(`${resource.name} is not active in ${monthLabel(month)}`);
+      return;
+    }
+
     if (newActId !== originalActivityId) {
       const del = await fetch(`/api/mappings?resource_id=${resource.id}&activity_id=${originalActivityId}&month=${month}`, { method: 'DELETE' });
-      if (!del.ok) { setError('Delete failed'); return; }
+      if (!del.ok) { setError(await parseApiError(del, resource.name, month)); return; }
     }
     const res = await fetch('/api/mappings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ resource_id: resource.id, activity_id: newActId, month, percent: newPct }),
     });
-    if (!res.ok) { setError('Save failed'); return; }
+    if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
     setEditingActivityId(null);
     onMappingChange();
   }
@@ -206,6 +227,12 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
     const pct = parseFloat(newPercent);
     if (pct < 1 || pct > 100) return;
     setError(null);
+
+    if (!resource.active) {
+      setError(`${resource.name} is not active in ${monthLabel(month)}`);
+      return;
+    }
+
     const res = await fetch('/api/mappings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -216,7 +243,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
         percent: pct,
       }),
     });
-    if (!res.ok) { setError('Add failed'); return; }
+    if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
     setAdding(false);
     setNewActivityId('');
     setNewPercent('');
@@ -225,8 +252,12 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
 
   async function handleDelete(activityId: number) {
     setError(null);
+    if (!resource.active) {
+      setError(`${resource.name} is not active in ${monthLabel(month)}`);
+      return;
+    }
     const res = await fetch(`/api/mappings?resource_id=${resource.id}&activity_id=${activityId}&month=${month}`, { method: 'DELETE' });
-    if (!res.ok) { setError('Delete failed'); return; }
+    if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
     onMappingChange();
   }
 
