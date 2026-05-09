@@ -177,7 +177,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
   async function handleSaveEdit(originalActivityId: number) {
     if (!editActivityId || !editPercent) return;
     const newActId = parseInt(editActivityId);
-    const newPct = parseFloat(editPercent);
+    const newPct = parseInt(editPercent, 10);
     if (newPct < 1 || newPct > 100) return;
     setError(null);
 
@@ -204,7 +204,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
 
   async function handleAdd() {
     if (!newActivityId || !newPercent) return;
-    const pct = parseFloat(newPercent);
+    const pct = parseInt(newPercent, 10);
     if (pct < 1 || pct > 100) return;
     setError(null);
 
@@ -278,11 +278,10 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
               </select>
               <div className="flex gap-2 items-center">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={editPercent}
-                  onChange={(e) => setEditPercent(e.target.value)}
-                  min="1"
-                  max="100"
+                  onChange={(e) => setEditPercent(e.target.value.replace(/\D/g, '').slice(0, 3))}
                   className="bg-gray-700 border border-gray-600 rounded px-2 py-1 w-20"
                 />
                 <button
@@ -337,12 +336,11 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
           </select>
           <div className="flex gap-2">
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={newPercent}
-              onChange={(e) => setNewPercent(e.target.value)}
+              onChange={(e) => setNewPercent(e.target.value.replace(/\D/g, '').slice(0, 3))}
               placeholder="%"
-              min="1"
-              max="100"
               className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs w-20"
             />
             <button

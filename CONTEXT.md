@@ -10,7 +10,7 @@ Pragmenta Insights workforce capacity tool. Resources (employees, contractors, v
 |---|---|
 | **resource** | A person or vendor slot with a `monthly_rate` and per-month active flags (`jan`–`dec`). Active flag `0` means zero cost regardless of mappings. |
 | **activity** | A unit of work with `activity_type` of `Support`, `Minor Changes`, or `Project`. Belongs to either an application or a project (not both). Named `"X - Y"` where X is the application name or `"P{nn} ProjectName"` and Y is the type. |
-| **mapping** | A resource allocated to an activity at `percent` for a given `month`. Composite PK: `(resource_id, activity_id, month)`. |
+| **mapping** | A resource allocated to an activity at `percent` for a given `month`. Composite PK: `(resource_id, activity_id, month)`. `percent` is a positive integer (1–100); fractional values are rejected by the API. |
 | **allocation_pct** | Sum of mapping percents for a division's **active** resources ÷ (active_resource_count × 100). Denominator is active headcount only — inactive resources do not dilute it. Values > 100% are a valid operational state (over-allocation). |
 | **idle_monthly_cost** | `monthly_rate × ((100 − total_allocation_pct) / 100)` — the cost of unmapped time, not the full rate. |
 | **active_resource_count** | Resources whose month flag = 1 for the queried month. Differs from `resource_count` (total headcount) when resources join or leave mid-year. |
@@ -48,6 +48,7 @@ Month and division filter state lives in `App.tsx` and is passed as props into a
 
 - Active flag gates all cost — `active flag = 0` → cost = 0 for that month regardless of mappings
 - Hard 100% allocation cap — `PUT /api/mappings` and `DELETE /api/mappings` reject writes that exceed the cap or target a month in which the resource is inactive (ADR 6)
+- Integer-only percent — `PUT /api/mappings` rejects non-integer or zero `percent` values; valid range is 1–100 per mapping
 - No freeform SQL — all Claude queries go through the six typed tool methods (ADR 3)
 - No Excel upload, no UploadService, no SuggestionService (out of scope)
 

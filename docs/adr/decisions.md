@@ -97,6 +97,7 @@
 - Rounding fractional inputs silently on write — hides the constraint from callers; a clear rejection with `would_exceed_cap` is more honest than silent mutation.
 
 **Key constraints:**
-- `AllocationValidator` is the single enforcement point: rejects `percent < 1` and any non-integer value. When `Mapping.Percent` is typed as `int`, the non-integer check is unnecessary at runtime but the `< 1` guard remains.
+- `AllocationValidator` is the single enforcement point: rejects `percent < 1`. `Mapping.Percent` is typed as `int`, so non-integer values are rejected at the model-binding layer before reaching the validator.
+- The frontend enforces integers at the input layer: `type="text"` with `inputMode="numeric"`, `onChange` strips non-digit characters, `parseInt` on submit.
 - Seed data must be regenerated from scratch using a largest-remainder integer distribution; do not patch existing fractional rows.
 - The `data/mappings.json` invariant is unchanged: every active resource's monthly total is exactly 100%.

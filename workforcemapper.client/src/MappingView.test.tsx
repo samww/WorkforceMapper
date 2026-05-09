@@ -90,7 +90,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
 
-    const percentInput = within(aliceCard).getByRole('spinbutton');
+    const percentInput = within(aliceCard).getByRole('textbox');
     expect((percentInput as HTMLInputElement).value).toBe('60');
   });
 
@@ -114,7 +114,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
     await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
-    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '50');
+    await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '50');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
     expect(await within(aliceCard).findByText(/Cannot allocate more than 100%/)).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
     await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
-    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '50');
+    await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '50');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
     expect(await within(aliceCard).findByText(/is not active in/)).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
     await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
-    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '50');
+    await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '50');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
     expect(await within(aliceCard).findByText(/is not active in/)).toBeInTheDocument();
@@ -195,7 +195,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
     await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
-    await userEvent.type(within(aliceCard).getByRole('spinbutton'), '20');
+    await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '20');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
     expect(within(aliceCard).getByRole('status')).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('MappingView', () => {
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /edit AuthService/i }));
 
-    const percentInput = within(aliceCard).getByRole('spinbutton');
+    const percentInput = within(aliceCard).getByRole('textbox');
     await userEvent.clear(percentInput);
     await userEvent.type(percentInput, '80');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^save$/i }));

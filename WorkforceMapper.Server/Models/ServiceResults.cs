@@ -17,7 +17,7 @@ public record AllocationResult(
     int ResourceDbId,
     string ResourceName,
     string Division,
-    decimal Percent,
+    int Percent,
     decimal ImpliedMonthlyCost
 );
 

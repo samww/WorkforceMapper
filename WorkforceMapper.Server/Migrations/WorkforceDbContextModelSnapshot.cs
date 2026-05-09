@@ -697,8 +697,8 @@ namespace WorkforceMapper.Server.Migrations
                     b.Property<string>("Month")
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("Percent")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("Percent")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("ResourceId", "ActivityId", "Month");
 

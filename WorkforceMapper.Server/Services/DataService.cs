@@ -252,7 +252,7 @@ public class DataService(WorkforceDbContext context)
             .Where(m => m.ResourceId == resourceId && m.Month == month)
             .ToListAsync();
 
-    public async Task UpsertMappingAsync(int resourceId, int activityId, string month, decimal percent)
+    public async Task UpsertMappingAsync(int resourceId, int activityId, string month, int percent)
     {
         var existing = await context.Mappings.FindAsync(resourceId, activityId, month);
         if (existing is not null)

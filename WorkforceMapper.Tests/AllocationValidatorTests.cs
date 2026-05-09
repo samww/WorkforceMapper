@@ -26,11 +26,11 @@ public class AllocationValidatorTests
     {
         var existing = new List<Mapping>
         {
-            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 70m }
+            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 70 }
         };
 
         var result = AllocationValidator.ValidateUpsert(
-            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 30m);
+            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 30);
 
         Assert.True(result.IsValid);
         Assert.Equal(RejectionReason.None, result.Reason);
@@ -43,11 +43,11 @@ public class AllocationValidatorTests
     {
         var existing = new List<Mapping>
         {
-            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 100m }
+            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 100 }
         };
 
         var result = AllocationValidator.ValidateUpsert(
-            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 1m);
+            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 1);
 
         Assert.False(result.IsValid);
         Assert.Equal(RejectionReason.WouldExceedCap, result.Reason);
@@ -60,12 +60,12 @@ public class AllocationValidatorTests
     {
         var existing = new List<Mapping>
         {
-            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 50m },
-            new() { ResourceId = 1, ActivityId = 2, Month = "2026-06", Percent = 50m }
+            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 50 },
+            new() { ResourceId = 1, ActivityId = 2, Month = "2026-06", Percent = 50 }
         };
 
         var result = AllocationValidator.ValidateUpsert(
-            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 60m);
+            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 60);
 
         Assert.False(result.IsValid);
         Assert.Equal(RejectionReason.WouldExceedCap, result.Reason);
@@ -78,12 +78,12 @@ public class AllocationValidatorTests
     {
         var existing = new List<Mapping>
         {
-            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 50m },
-            new() { ResourceId = 1, ActivityId = 2, Month = "2026-06", Percent = 50m }
+            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 50 },
+            new() { ResourceId = 1, ActivityId = 2, Month = "2026-06", Percent = 50 }
         };
 
         var result = AllocationValidator.ValidateUpsert(
-            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 30m);
+            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 30);
 
         Assert.True(result.IsValid);
         Assert.Equal(RejectionReason.None, result.Reason);
@@ -95,7 +95,7 @@ public class AllocationValidatorTests
     public void ValidateUpsert_ReturnsWouldExceedCap_WhenProposedPercentNegative()
     {
         var result = AllocationValidator.ValidateUpsert(
-            ActiveResource(), "2026-06", [], activityId: 1, proposedPercent: -10m);
+            ActiveResource(), "2026-06", [], activityId: 1, proposedPercent: -10);
 
         Assert.False(result.IsValid);
         Assert.Equal(RejectionReason.WouldExceedCap, result.Reason);
@@ -107,7 +107,7 @@ public class AllocationValidatorTests
     public void ValidateUpsert_ReturnsResourceInactiveInMonth_WhenResourceInactiveInMonth()
     {
         var result = AllocationValidator.ValidateUpsert(
-            InactiveJuneResource(), "2026-06", [], activityId: 1, proposedPercent: 50m);
+            InactiveJuneResource(), "2026-06", [], activityId: 1, proposedPercent: 50);
 
         Assert.False(result.IsValid);
         Assert.Equal(RejectionReason.ResourceInactiveInMonth, result.Reason);
@@ -124,19 +124,31 @@ public class AllocationValidatorTests
         Assert.Equal(RejectionReason.ResourceInactiveInMonth, result.Reason);
     }
 
-    // --- Cycle 8: Idempotent replace — same percent leaves total unchanged ---
+    // --- Cycle 8: Zero percent rejected as WouldExceedCap (ADR 8) ---
+
+    [Fact]
+    public void ValidateUpsert_ReturnsWouldExceedCap_WhenPercentIsZero()
+    {
+        var result = AllocationValidator.ValidateUpsert(
+            ActiveResource(), "2026-06", [], activityId: 1, proposedPercent: 0);
+
+        Assert.False(result.IsValid);
+        Assert.Equal(RejectionReason.WouldExceedCap, result.Reason);
+    }
+
+    // --- Cycle 9: Idempotent replace — same percent leaves total unchanged ---
 
     [Fact]
     public void ValidateUpsert_ReturnsValid_WhenReplacingMappingWithSamePercent()
     {
         var existing = new List<Mapping>
         {
-            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 70m },
-            new() { ResourceId = 1, ActivityId = 2, Month = "2026-06", Percent = 30m }
+            new() { ResourceId = 1, ActivityId = 1, Month = "2026-06", Percent = 70 },
+            new() { ResourceId = 1, ActivityId = 2, Month = "2026-06", Percent = 30 }
         };
 
         var result = AllocationValidator.ValidateUpsert(
-            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 30m);
+            ActiveResource(), "2026-06", existing, activityId: 2, proposedPercent: 30);
 
         Assert.True(result.IsValid);
         Assert.Equal(RejectionReason.None, result.Reason);

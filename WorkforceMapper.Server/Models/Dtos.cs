@@ -1,6 +1,6 @@
 namespace WorkforceMapper.Server.Models;
 
-public record MappingDto(int activity_id, string activity_name, decimal percent, string month);
+public record MappingDto(int activity_id, string activity_name, int percent, string month);
 
 public record ResourceDto(
     int id,
@@ -19,7 +19,7 @@ public record ResourceDto(
 
 public record ActivityDto(int id, string name, string activity_type, string division, string parent_name);
 
-public record UpsertMappingRequest(int resource_id, int activity_id, string month, decimal percent);
+public record UpsertMappingRequest(int resource_id, int activity_id, string month, int percent);
 
 public record ChatRequest(string Query, string? Month);
 

@@ -47,8 +47,8 @@ public class DataServiceTests
 
         // Activity 1 and 3 are seeded via HasData (PE activities)
         context.Mappings.AddRange(
-            new Mapping { ResourceId = resource.Id, ActivityId = 1, Month = "2026-05", Percent = 40m },
-            new Mapping { ResourceId = resource.Id, ActivityId = 3, Month = "2026-05", Percent = 60m }
+            new Mapping { ResourceId = resource.Id, ActivityId = 1, Month = "2026-05", Percent = 40},
+            new Mapping { ResourceId = resource.Id, ActivityId = 3, Month = "2026-05", Percent = 60}
         );
         await context.SaveChangesAsync();
 
@@ -57,8 +57,8 @@ public class DataServiceTests
 
         var found = Assert.Single(results);
         Assert.Equal(2, found.Mappings.Count);
-        Assert.Contains(found.Mappings, m => m.ActivityId == 1 && m.Percent == 40m);
-        Assert.Contains(found.Mappings, m => m.ActivityId == 3 && m.Percent == 60m);
+        Assert.Contains(found.Mappings, m => m.ActivityId == 1 && m.Percent == 40);
+        Assert.Contains(found.Mappings, m => m.ActivityId == 3 && m.Percent == 60);
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public class DataServiceTests
         foreach (var r in peResources)
         {
             context.Mappings.AddRange(
-                new Mapping { ResourceId = r.Id, ActivityId = 1, Month = "2026-05", Percent = 60m },
-                new Mapping { ResourceId = r.Id, ActivityId = 3, Month = "2026-05", Percent = 52m }
+                new Mapping { ResourceId = r.Id, ActivityId = 1, Month = "2026-05", Percent = 60},
+                new Mapping { ResourceId = r.Id, ActivityId = 3, Month = "2026-05", Percent = 52}
             );
         }
         await context.SaveChangesAsync();
@@ -123,7 +123,7 @@ public class DataServiceTests
         await context.SaveChangesAsync();
 
         // Activity 5 = AuthService - Support (seeded); AuthService has no ProductApplications
-        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 5, Month = "2026-05", Percent = 100m });
+        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 5, Month = "2026-05", Percent = 100});
         await context.SaveChangesAsync();
 
         var service = new DataService(context);
@@ -187,7 +187,7 @@ public class DataServiceTests
         // Map each resource 100% to AuthService Support (activity 5) → 3.0 FTE
         // AuthService min=4.0, so 3.0 FTE < 4.0 → HIGH
         foreach (var r in resources)
-            context.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 5, Month = "2026-05", Percent = 100m });
+            context.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 5, Month = "2026-05", Percent = 100});
 
         // All other apps have 0 FTE mappings → also HIGH individually, but that
         // doesn't affect the structural assertion: every product's closure contains

@@ -45,9 +45,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         var all = db.Resources.ToList();
         foreach (var r in all.Where(r => r.Division == "Platform Engineering"))
-            db.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 1, Month = "2026-05", Percent = 60m });
+            db.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 1, Month = "2026-05", Percent = 60});
         foreach (var r in all.Where(r => r.Division == "Analytics"))
-            db.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 11, Month = "2026-05", Percent = 80m });
+            db.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 11, Month = "2026-05", Percent = 80 });
         db.SaveChanges();
     }
 
@@ -72,26 +72,26 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     //   PanelIQ       (app 18, act 16): 2 @ 100% = 2.0 FTE [min=2.0, rec=3.0 → MEDIUM]
     //   DataMapper    (app 7, act 13): 2 @ 100% = 2.0 FTE  [min=1.5, rec=2.5 → MEDIUM]
     //   Others: each mapped at >= rec → LOW
-    private static readonly (int activityId, int count, decimal pct)[] _applicationSeedMappings =
+    private static readonly (int activityId, int count, int pct)[] _applicationSeedMappings =
     [
-        (5,  3, 100m), // AuthService: 3.0 FTE  → HIGH
-        (4,  2, 100m), // SurveyEngine: 2.0 FTE → MEDIUM
-        (16, 2, 100m), // PanelIQ: 2.0 FTE      → MEDIUM
-        (13, 2, 100m), // DataMapper: 2.0 FTE    → MEDIUM
-        (1,  3, 100m), // CDW: 3.0 FTE           → LOW (rec=3.0)
-        (3,  3, 100m), // APIGateway: 3.0 FTE    → LOW (rec=2.5)
-        (6,  2, 100m), // ObsStack: 2.0 FTE      → LOW (rec=2.0)
-        (11, 3, 100m), // InsightHub: 3.0 FTE    → LOW (rec=2.5)
-        (14, 2, 100m), // QuotaManager: 2.0 FTE  → LOW (rec=1.5)
-        (15, 2, 100m), // SegmentBuilder: 2.0 FTE → LOW (rec=2.0)
-        (20, 3, 100m), // FieldOps: 3.0 FTE      → LOW (rec=3.0)
-        (21, 3, 100m), // WebCollect: 3.0 FTE    → LOW (rec=2.5)
-        (22, 2, 100m), // SampleRouter: 2.0 FTE  → LOW (rec=1.5)
-        (23, 2, 100m), // CallCentre: 2.0 FTE    → LOW (rec=1.5)
-        (24, 2, 100m), // DiaryTracker: 2.0 FTE  → LOW (rec=2.0)
-        (28, 2, 100m), // ClientPortal: 2.0 FTE  → LOW (rec=2.0)
-        (29, 2, 100m), // ReportFactory: 2.0 FTE → LOW (rec=1.5)
-        (31, 2, 100m), // DeliveryTracker: 2.0 FTE → LOW (rec=1.5)
+        (5,  3, 100), // AuthService: 3.0 FTE  → HIGH
+        (4,  2, 100), // SurveyEngine: 2.0 FTE → MEDIUM
+        (16, 2, 100), // PanelIQ: 2.0 FTE      → MEDIUM
+        (13, 2, 100), // DataMapper: 2.0 FTE    → MEDIUM
+        (1,  3, 100), // CDW: 3.0 FTE           → LOW (rec=3.0)
+        (3,  3, 100), // APIGateway: 3.0 FTE    → LOW (rec=2.5)
+        (6,  2, 100), // ObsStack: 2.0 FTE      → LOW (rec=2.0)
+        (11, 3, 100), // InsightHub: 3.0 FTE    → LOW (rec=2.5)
+        (14, 2, 100), // QuotaManager: 2.0 FTE  → LOW (rec=1.5)
+        (15, 2, 100), // SegmentBuilder: 2.0 FTE → LOW (rec=2.0)
+        (20, 3, 100), // FieldOps: 3.0 FTE      → LOW (rec=3.0)
+        (21, 3, 100), // WebCollect: 3.0 FTE    → LOW (rec=2.5)
+        (22, 2, 100), // SampleRouter: 2.0 FTE  → LOW (rec=1.5)
+        (23, 2, 100), // CallCentre: 2.0 FTE    → LOW (rec=1.5)
+        (24, 2, 100), // DiaryTracker: 2.0 FTE  → LOW (rec=2.0)
+        (28, 2, 100), // ClientPortal: 2.0 FTE  → LOW (rec=2.0)
+        (29, 2, 100), // ReportFactory: 2.0 FTE → LOW (rec=1.5)
+        (31, 2, 100), // DeliveryTracker: 2.0 FTE → LOW (rec=1.5)
     ];
 
     public void SeedApplicationsTestData()

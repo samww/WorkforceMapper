@@ -13,12 +13,12 @@ public static class AllocationValidator
         string month,
         IReadOnlyCollection<Mapping> currentMappingsForResourceMonth,
         int activityId,
-        decimal proposedPercent)
+        int proposedPercent)
     {
         if (!resource.IsActiveIn(month))
             return new ValidationResult(false, RejectionReason.ResourceInactiveInMonth);
 
-        if (proposedPercent < 0m)
+        if (proposedPercent < 1)
             return new ValidationResult(false, RejectionReason.WouldExceedCap);
 
         var total = currentMappingsForResourceMonth
@@ -26,7 +26,7 @@ public static class AllocationValidator
             .Sum(m => m.Percent)
             + proposedPercent;
 
-        if (total > 100m)
+        if (total > 100)
             return new ValidationResult(false, RejectionReason.WouldExceedCap);
 
         return new ValidationResult(true, RejectionReason.None);

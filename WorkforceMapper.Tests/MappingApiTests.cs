@@ -208,7 +208,25 @@ public class MappingApiTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
-    // --- Cycle 6: Mappings embedded in GET /api/resources after a PUT ---
+    // --- Cycle 6: Zero percent rejected as would_exceed_cap (ADR 8) ---
+
+    [Fact]
+    public async Task PutMapping_Returns400_WhenPercentIsZero()
+    {
+        var response = await _client.PutAsJsonAsync("/api/mappings", new
+        {
+            resource_id = 1,
+            activity_id = 2,
+            month = "2026-06",
+            percent = 0
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("would_exceed_cap", body.GetProperty("error").GetString());
+    }
+
+    // --- Cycle 7: Mappings embedded in GET /api/resources after a PUT ---
     // Resource 1, "2026-06": +40% on activity 6 (cumulative with test 1: 90%)
 
     [Fact]
