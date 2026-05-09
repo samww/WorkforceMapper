@@ -1,10 +1,5 @@
 # WorkforceMapper — Domain Context
 
-> **Issue #10 in progress — two facts below will change as slices land:**
-> - The **advisory 100% rule** becomes a hard cap: `PUT`/`DELETE` `/api/mappings` will reject violations with 400 (slice #13, ADR 6).
-> - **`get_overallocated_resources`** is removed; `get_application_risk` and `get_product_risk` are added (slices #11–#12, #14).
-> Target API surface and tool list: `docs/build/api-contracts.md`.
-
 Pragmenta Insights workforce capacity tool. Resources (employees, contractors, vendors) are mapped to activities at a percentage allocation per month. The AI layer lets users query capacity, cost, and risk in natural language.
 
 **Fictional company. Any resemblance to real organisations is coincidental.**
@@ -22,22 +17,28 @@ Pragmenta Insights workforce capacity tool. Resources (employees, contractors, v
 | **idle_monthly_cost** | `monthly_rate × ((100 − total_allocation_pct) / 100)` — the cost of unmapped time, not the full rate. |
 | **active_resource_count** | Resources whose month flag = 1 for the queried month. Differs from `resource_count` (total headcount) when resources join or leave mid-year. |
 | **Unattributed** | Mapped cost that cannot be traced to any product (e.g. AuthService support, ObservabilityStack, DevPortal Rebuild). Surfaced as an explicit line by `get_cost_by_product`. |
-| **advisory constraint** | The 100% allocation rule. The API accepts any percent value. Violations surface in the UI (red bar, unallocated filter) and via NL query tools. Never enforced at API or database level. |
+| **support level** | Per-application thresholds `min_support_fte` and `recommended_support_fte` describing the demand on the engineering team to keep the application running. |
+| **capacity coverage** | Sum of `(mapping.percent / 100)` across active resources whose mapping targets an application's Support activity for a month. |
+| **application risk** | High / medium / low classification of an application based on capacity coverage relative to its `min_support_fte` and `recommended_support_fte`. |
+| **product risk** | Max-wins aggregation of application risk over the transitive closure of (direct apps + their `application_dependencies`). |
+| **application dependency** | Directed `(application_id, depends_on_application_id)` edge in `application_dependencies`. Used for risk reach; not used for cost attribution. |
+| **donor candidate** | An active resource currently mapped to a Project or Minor Changes activity, surfaced as potential capacity to shift onto a Support activity. Composed by the agent from `get_unallocated_resources` and `get_activity_allocations`. |
 
 ---
 
-## Data Model (8 entities)
+## Data Model (9 entities)
 
 ```
 resources ──< mappings >── activities ──> applications ──< product_applications >── products
                                      └──> projects     ──< project_products     >── products
+                                          applications ──< application_dependencies >── applications
 ```
 
 - **resources** — 80 seeded from `data/resources.json`; 4 divisions: Platform Engineering (23), Analytics (24), Data Collection (20), Client Services (13)
 - **activities** — 48 seeded via EF `HasData()` from `data/taxonomy.json`; each belongs to one application OR one project; all 18 applications have both Support and Minor Changes; projects prefixed P01–P12
 - **mappings** — seeded from `data/mappings.json`; every active resource in `2026-05` sums to exactly 100%
 - **products** — 7; $28.9m total ARR; all 7 transitively depend on AuthService
-- **applications** — 18; **projects** — 12; join tables: `product_applications` (26), `project_products` (26)
+- **applications** — 18 (`min_support_fte` and `recommended_support_fte` thresholds per application); **projects** — 12; join tables: `product_applications` (26), `project_products` (26), `application_dependencies` (directed dependency edges used for risk propagation, not cost attribution)
 
 Default month: **`2026-05`**. Hardcode as a constant throughout.
 
@@ -46,8 +47,8 @@ Default month: **`2026-05`**. Hardcode as a constant throughout.
 ## Key Constraints
 
 - Active flag gates all cost — `active flag = 0` → cost = 0 for that month regardless of mappings
-- Advisory-only 100% rule — API returns 200 for any percent value (ADR 5)
-- No freeform SQL — all Claude queries go through the five typed tool methods (ADR 3)
+- Hard 100% allocation cap — `PUT /api/mappings` and `DELETE /api/mappings` reject writes that exceed the cap or target a month in which the resource is inactive (ADR 6)
+- No freeform SQL — all Claude queries go through the six typed tool methods (ADR 3)
 - No Excel upload, no UploadService, no SuggestionService (out of scope)
 
 ---
@@ -59,8 +60,10 @@ Default month: **`2026-05`**. Hardcode as a constant throughout.
 | GET | `/api/health` | `{ status, resource_count, mapping_count }` |
 | GET | `/api/resources?month=` | Array with nested `mappings`; `active` reflects month flag |
 | GET | `/api/activities` | Full list |
-| PUT | `/api/mappings` | Body: `{ resource_id, activity_id, month, percent }` |
-| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404 |
+| GET | `/api/applications?month=` | Array with risk classification and coverage per application |
+| GET | `/api/products?month=` | Array with aggregated product risk and dependent ARR |
+| PUT | `/api/mappings` | Body: `{ resource_id, activity_id, month, percent }`; 400 + `would_exceed_cap` or `resource_inactive_in_month` on violation |
+| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404; 400 + `resource_inactive_in_month` if month is inactive for the resource |
 | POST | `/api/chat` | Body: `{ query, month }` → SSE stream of text tokens |
 
 ---
