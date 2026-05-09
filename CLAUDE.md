@@ -4,24 +4,26 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **#17–#20** (multi-month data, dependency diagrams, mobile, query chips). Issues #11–#16 done; `CONTEXT.md` reflects current state.
+Active iteration: **#17–#20** (multi-month data, dependency diagrams, mobile, query chips) and **#22–#23** (integer-only mapping percents). Issues #11–#16, #21 done; `CONTEXT.md` reflects current state.
 
 Only read deeper docs when directly relevant to the issue being worked on:
 
-| Issue | Spec |
-|---|---|
-| #2–#16 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code |
-| #17 Multi-month synthetic data | `docs/build/issue-17-multi-month-data.md` — also read `docs/build/synthetic-data-spec.md` |
-| #18 Mermaid dependency diagrams | `docs/build/issue-18-mermaid-diagrams.md` — also read `docs/build/risk-model.md` |
-| #19 Mobile touch targets | `docs/build/issue-19-touch-targets.md` |
-| #20 Demo-aligned query chips | `docs/build/issue-20-query-chips.md` — also read `docs/background/DEMO_SCRIPT.md` |
+| Issue | Spec | Blocked by |
+|---|---|---|
+| #2–#16, #21 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
+| #17 Multi-month synthetic data | `docs/build/issue-17-multi-month-data.md` — also read `docs/build/synthetic-data-spec.md` | none |
+| #18 Mermaid dependency diagrams | `docs/build/issue-18-mermaid-diagrams.md` — also read `docs/build/risk-model.md` | none |
+| #19 Mobile touch targets | `docs/build/issue-19-touch-targets.md` | none |
+| #20 Demo-aligned query chips | `docs/build/issue-20-query-chips.md` — also read `docs/background/DEMO_SCRIPT.md` | none |
+| #22 Backend: integer-only `Mapping.Percent` (ADR 8) | self-contained — see issue body | none |
+| #23 Frontend: integer-only percent inputs | self-contained — see issue body | #22 |
 
 Additional docs (only when needed):
 - `docs/build/risk-model.md` — capacity coverage formula, application risk classification, product max-wins aggregation, dependency graph contract (#11, #12, #14)
 - `docs/build/db-schema.md` — cost attribution chain, key constraints (#11)
 - `docs/build/synthetic-data-spec.md` — seed data rate tables (only when regenerating `data/*.json` from scratch)
 - `docs/build/agent-system-prompt.md` — verbatim AgentService system prompt (only when maintaining chat agent)
-- `docs/adr/decisions.md` — ADR 1 (SQLite), ADR 3 (tool-use), ADR 4 (C#/.NET), ADR 5 (advisory — superseded by ADR 6), ADR 6 (hard cap), ADR 7 (risk model)
+- `docs/adr/decisions.md` — ADR 1 (SQLite), ADR 3 (tool-use), ADR 4 (C#/.NET), ADR 5 (advisory — superseded by ADR 6), ADR 6 (hard cap), ADR 7 (risk model), ADR 8 (integer-only percent — #21–#23)
 
 Use the glossary vocabulary from `CONTEXT.md` when referring to domain concepts. If a planned implementation conflicts with an ADR, flag it before proceeding.
 

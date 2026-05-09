@@ -1,0 +1,20 @@
+[
+  { "app_id": 1,  "name": "CoreDataWarehouse",  "support_activity_ids": [1],  "min_support_fte": 2.0 },
+  { "app_id": 2,  "name": "APIGateway",         "support_activity_ids": [3],  "min_support_fte": 1.5 },
+  { "app_id": 3,  "name": "SurveyEngine",       "support_activity_ids": [4],  "min_support_fte": 2.0 },
+  { "app_id": 4,  "name": "AuthService",        "support_activity_ids": [5],  "min_support_fte": 4.0 },
+  { "app_id": 5,  "name": "ObservabilityStack", "support_activity_ids": [6],  "min_support_fte": 1.0 },
+  { "app_id": 6,  "name": "InsightHub",         "support_activity_ids": [11], "min_support_fte": 1.5 },
+  { "app_id": 7,  "name": "DataMapper",         "support_activity_ids": [13], "min_support_fte": 1.5 },
+  { "app_id": 8,  "name": "QuotaManager",       "support_activity_ids": [14], "min_support_fte": 1.0 },
+  { "app_id": 9,  "name": "SegmentBuilder",     "support_activity_ids": [15], "min_support_fte": 1.0 },
+  { "app_id": 10, "name": "FieldOps",           "support_activity_ids": [20], "min_support_fte": 2.0 },
+  { "app_id": 11, "name": "WebCollect",         "support_activity_ids": [21], "min_support_fte": 1.5 },
+  { "app_id": 12, "name": "SampleRouter",       "support_activity_ids": [22], "min_support_fte": 1.0 },
+  { "app_id": 13, "name": "CallCentre Suite",   "support_activity_ids": [23], "min_support_fte": 1.0 },
+  { "app_id": 14, "name": "DiaryTracker",       "support_activity_ids": [24], "min_support_fte": 1.0 },
+  { "app_id": 15, "name": "ClientPortal",       "support_activity_ids": [28], "min_support_fte": 1.5 },
+  { "app_id": 16, "name": "ReportFactory",      "support_activity_ids": [29], "min_support_fte": 1.0 },
+  { "app_id": 17, "name": "DeliveryTracker",    "support_activity_ids": [31], "min_support_fte": 1.0 },
+  { "app_id": 18, "name": "PanelIQ",            "support_activity_ids": [16], "min_support_fte": 2.0 }
+]

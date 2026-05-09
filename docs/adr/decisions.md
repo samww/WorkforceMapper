@@ -83,3 +83,20 @@
 - Risk classification is owned by `RiskCalculator` (single source of truth).
 - Dependency graph traversal is owned by `DependencyGraph`; BFS with visited-set termination handles cycles.
 - Cost attribution is unchanged. The Unattributed line behaviour is preserved.
+
+---
+
+## ADR 8: Integer-only mapping percent
+
+**Decision:** `mapping.Percent` is a positive integer in the range 1–100. The API rejects fractional values and zero. The frontend enforces integers at the input layer (`step="1"`, `parseInt`). Computed aggregates (`allocation_pct`, `current_coverage_fte`) remain fractional decimals derived from integer inputs.
+
+**Why:** Fractional percents (e.g. 13.5%) imply a precision that does not exist in this tool. Workforce allocation is estimated, not measured; the appearance of decimal precision misleads users. Integer inputs simplify the UI, remove a class of floating-point edge cases from the cap validator, and make the seed data generator straightforward.
+
+**Alternatives considered and rejected:**
+- One-decimal precision (e.g. 13.5%) — the precision is cosmetic; the underlying data is still estimation. Adds complexity (float equality checks, generator rounding) for no meaningful gain.
+- Rounding fractional inputs silently on write — hides the constraint from callers; a clear rejection with `would_exceed_cap` is more honest than silent mutation.
+
+**Key constraints:**
+- `AllocationValidator` is the single enforcement point: rejects `percent < 1` and any non-integer value. When `Mapping.Percent` is typed as `int`, the non-integer check is unnecessary at runtime but the `< 1` guard remains.
+- Seed data must be regenerated from scratch using a largest-remainder integer distribution; do not patch existing fractional rows.
+- The `data/mappings.json` invariant is unchanged: every active resource's monthly total is exactly 100%.
