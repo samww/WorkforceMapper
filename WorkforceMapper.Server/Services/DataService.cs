@@ -46,13 +46,13 @@ public class DataService(WorkforceDbContext context)
         return await query.ToListAsync();
     }
 
-    public async Task<List<CapacityResult>> GetCapacityByDivisionAsync(string month)
+    public async Task<CapacitySummaryResult> GetCapacityByDivisionAsync(string month)
     {
         var resources = await context.Resources
             .Include(r => r.Mappings)
             .ToListAsync();
 
-        return resources
+        var divisions = resources
             .Where(r => GetMonthFlag(r, month) == 1)
             .GroupBy(r => r.Division)
             .Select(g =>
@@ -74,6 +74,20 @@ public class DataService(WorkforceDbContext context)
                     allocatedCost, monthlyCost - allocatedCost, allocationPct);
             })
             .ToList();
+
+        var totalCount = divisions.Sum(d => d.ResourceCount);
+        var totalSumPct = resources
+            .Where(r => GetMonthFlag(r, month) == 1)
+            .Sum(r => r.Mappings.Where(m => m.Month == month).Sum(m => (decimal)m.Percent));
+        var overallAllocationPct = totalCount > 0 ? totalSumPct / totalCount : 0m;
+
+        return new CapacitySummaryResult(
+            totalCount,
+            divisions.Sum(d => d.MonthlyCost),
+            divisions.Sum(d => d.AllocatedMonthlyCost),
+            divisions.Sum(d => d.UnallocatedMonthlyCost),
+            overallAllocationPct,
+            divisions);
     }
 
     public async Task<ActivityAllocationsResult> GetActivityAllocationsAsync(
@@ -117,6 +131,70 @@ public class DataService(WorkforceDbContext context)
         );
     }
 
+    public async Task<DonorCandidatesResult?> GetDonorCandidatesAsync(
+        int? applicationId, string? applicationName, string month)
+    {
+        var query = context.Applications.Include(a => a.Activities).AsQueryable();
+        var application = applicationId.HasValue
+            ? await query.FirstOrDefaultAsync(a => a.Id == applicationId.Value)
+            : await query.FirstOrDefaultAsync(a =>
+                a.Name.ToLower() == (applicationName ?? "").ToLower());
+        if (application is null) return null;
+
+        var division = application.Activities.FirstOrDefault()?.Division ?? "";
+
+        var supportMappings = await context.Mappings
+            .Where(m => m.Month == month && m.Activity.ActivityType == "Support"
+                        && m.Activity.ApplicationId == application.Id)
+            .Include(m => m.Resource)
+            .ToListAsync();
+        var currentCoverage = supportMappings
+            .Where(m => GetMonthFlag(m.Resource, month) == 1)
+            .Sum(m => (double)m.Percent / 100.0);
+
+        var resources = await context.Resources
+            .Include(r => r.Mappings)
+            .ThenInclude(m => m.Activity)
+            .ToListAsync();
+
+        var gap = Math.Max(0.0, application.MinSupportFte - currentCoverage);
+
+        var sorted = resources
+            .Where(r => GetMonthFlag(r, month) == 1 && r.Division == division)
+            .SelectMany(r => r.Mappings.Where(m => m.Month == month
+                && (m.Activity.ActivityType == "Project" || m.Activity.ActivityType == "Minor Changes")),
+                (r, m) =>
+                {
+                    var allocationFte = m.Percent / 100.0;
+                    var impliedCost = r.MonthlyRate * m.Percent / 100m;
+                    // cost_per_fte == the resource's monthly rate; sort ascending so cheapest FTE comes first
+                    var costPerFte = m.Percent > 0 ? r.MonthlyRate : 0m;
+                    var gapCoveragePct = gap > 0 ? allocationFte / gap * 100.0 : 0.0;
+                    return new DonorCandidateRow(
+                        r.Name, m.Activity.Name, m.Activity.ActivityType,
+                        m.Percent, impliedCost, allocationFte, costPerFte, gapCoveragePct,
+                        0.0, 0.0);
+                })
+            .OrderBy(c => c.CostPerFte)
+            .ToList();
+
+        var runningFte = 0.0;
+        var candidates = sorted.Select(c =>
+        {
+            runningFte += c.AllocationFte;
+            var cumCoverage = gap > 0 ? runningFte / gap * 100.0 : 0.0;
+            return c with { CumulativeFte = runningFte, CumulativeGapCoveragePct = cumCoverage };
+        }).ToList();
+
+        return new DonorCandidatesResult(
+            application.Id, application.Name, division,
+            currentCoverage, application.MinSupportFte, application.RecommendedSupportFte,
+            gap,
+            candidates.Select(c => c.ResourceName).Distinct().Count(),
+            candidates.Count,
+            candidates);
+    }
+
     public async Task<UnallocatedResourcesResult> GetUnallocatedResourcesAsync(
         int thresholdPct, string? division, string? month)
     {
@@ -148,6 +226,7 @@ public class DataService(WorkforceDbContext context)
             .ToList();
 
         return new UnallocatedResourcesResult(
+            divisionGroups.Sum(d => d.ResourceCount),
             divisionGroups.Sum(d => d.TotalIdleMonthlyCost),
             divisionGroups);
     }
@@ -271,7 +350,7 @@ public class DataService(WorkforceDbContext context)
         return true;
     }
 
-    public async Task<List<ProductRiskDto>> GetProductRiskAsync(string month, int? productId = null)
+    public async Task<ProductRiskSummary> GetProductRiskAsync(string month, int? productId = null)
     {
         var appRisks = await GetApplicationsAsync(month);
         var riskByAppId = appRisks.ToDictionary(a => a.id, a =>
@@ -307,7 +386,7 @@ public class DataService(WorkforceDbContext context)
         string AppName(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.name ?? "";
         string AppDivision(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.division ?? "";
 
-        return products.Select(product =>
+        var productList = products.Select(product =>
         {
             var directAppIds = paByProduct.TryGetValue(product.Id, out var d) ? d : [];
             var closure = new HashSet<int>(directAppIds);
@@ -355,9 +434,18 @@ public class DataService(WorkforceDbContext context)
         })
         .OrderBy(p => p.id)
         .ToList();
+
+        return new ProductRiskSummary(
+            productList.Count(p => p.risk == "high"),
+            productList.Count(p => p.risk == "medium"),
+            productList.Count(p => p.risk == "low"),
+            productList.Where(p => p.risk == "high").Sum(p => p.arr),
+            productList.Where(p => p.risk == "medium").Sum(p => p.arr),
+            productList);
     }
 
-    public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(string month, int? applicationId = null)
+    public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(
+        string month, int? applicationId = null, string? applicationName = null)
     {
         var applications = await context.Applications
             .Include(a => a.Activities)
@@ -441,6 +529,10 @@ public class DataService(WorkforceDbContext context)
 
         if (applicationId.HasValue)
             applications = applications.Where(a => a.Id == applicationId.Value).ToList();
+        else if (applicationName is not null)
+            applications = applications
+                .Where(a => a.Name.Equals(applicationName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
         // Second pass: project DTOs with dependents populated from reverse traversal
         return applications
@@ -460,7 +552,7 @@ public class DataService(WorkforceDbContext context)
                     })
                     .OrderBy(p => p.name)
                     .ToList();
-                var dependents = graph.TransitiveDependentsOf(app.Id)
+                var transitiveDependentApps = graph.TransitiveDependentsOf(app.Id)
                     .Where(id => nameById.ContainsKey(id))
                     .Select(id =>
                     {
@@ -473,7 +565,9 @@ public class DataService(WorkforceDbContext context)
                     app.Id, app.Name, division,
                     app.MinSupportFte, app.RecommendedSupportFte,
                     coverage, risk.ToString().ToLowerInvariant(),
-                    products, dependents
+                    products, transitiveDependentApps,
+                    products.Sum(p => p.arr_usd),
+                    transitiveDependentApps.Count
                 );
             })
             .OrderBy(a => a.id)

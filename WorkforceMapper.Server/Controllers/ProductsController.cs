@@ -10,7 +10,7 @@ public class ProductsController(DataService dataService) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string month = "2026-05")
     {
-        var products = await dataService.GetProductRiskAsync(month);
-        return Ok(products);
+        var summary = await dataService.GetProductRiskAsync(month);
+        return Ok(summary.Products);
     }
 }

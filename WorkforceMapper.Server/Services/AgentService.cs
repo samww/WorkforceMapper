@@ -19,14 +19,16 @@ public class AgentService(IClaudeClient claude, DataService data)
           explicitly asks about a different month. Do not guess or invent other months.
         - The 100% allocation rule is hard — the API rejects any mapping change that would push a
           resource above 100% or target a month in which the resource is inactive.
-        - Application risk (get_application_risk) is classified as high, medium, or low based on
-          current_coverage_fte against min_support_fte and recommended_support_fte: below min is high,
-          below recommended is medium, at or above recommended is low.
-        - The dependent_products field in get_application_risk results lists only direct
-          product-application links. Foundational infrastructure apps (e.g. AuthService) have no direct
-          product links and will show dependent_products: [] — yet their risk propagates to every
-          product that depends on them transitively. Do not use dependent_products to assess ARR
-          exposure; use get_product_risk instead and look for the app in contributing_apps.
+        - Application risk (get_application_risk) returns a pre-computed risk field: "high", "medium",
+          or "low". Always read this field directly — do not re-derive it from FTE numbers.
+        - The dependent_products field in get_application_risk results lists every product whose
+          transitive dependency closure includes this application — both direct and indirect links.
+          Use total_dependent_arr_usd (pre-computed) for total ARR exposure; do not sum arr_usd
+          values yourself. Do not call get_product_risk to count ARR exposure when
+          get_application_risk already returns total_dependent_arr_usd and the full product list.
+        - The transitive_dependent_apps field lists every application that transitively depends on
+          this application (direct dependents plus all apps that depend on those dependents, etc.).
+          Use dependent_app_count (pre-computed) for the total count — do not count the list yourself.
         - Product risk (get_product_risk) is the maximum application risk across the transitive closure
           of all applications the product depends on (max-wins aggregation). Always call get_product_risk
           when asked about product revenue at risk or portfolio-wide exposure.
@@ -35,6 +37,20 @@ public class AgentService(IClaudeClient claude, DataService data)
           infrastructure overhead). This is deliberate, not a data quality issue.
         - active_resource_count reflects resources billing in the queried month (active flag = 1);
           resource_count is total headcount. These differ when resources join or leave mid-year.
+
+        - When asked where capacity could be found to address an under-resourced application, call
+          get_donor_candidates. Pass application_name (e.g. "AuthService") — do not guess or invent
+          application_id values. The tool returns a pre-joined list of donor candidates (resources in
+          the same division on Project or Minor Changes activities) sorted by cost_per_fte ascending
+          (cheapest FTE first). Each row includes allocation_fte (how much FTE a full transfer adds),
+          gap_coverage_pct (what percentage of the FTE gap that allocation alone would close),
+          cumulative_fte (running FTE total from cheapest candidate through this row), and
+          cumulative_gap_coverage_pct (running gap coverage % from cheapest through this row).
+          To find the minimum-cost combination that closes the gap, select rows in order until
+          cumulative_gap_coverage_pct first reaches or exceeds 100 — do not sum gap_coverage_pct
+          values yourself. Use unique_resource_count (pre-computed) for the count of distinct donor
+          resources and total_allocation_count for the number of allocation rows — do not count the
+          list yourself. Do not compose donor candidates manually from get_activity_allocations calls.
 
         Answer only from tool results — do not estimate or infer allocation figures. Always call at
         least one tool before answering. Cite specific division names, activity names, monthly cost
@@ -59,6 +75,7 @@ public class AgentService(IClaudeClient claude, DataService data)
         {
             Model = AnthropicModels.Claude45Haiku,
             MaxTokens = 4096,
+            Temperature = 0,
             System = [new SystemMessage(BuildSystemPrompt(month), null)],
             Tools = BuildTools(),
             Messages = messages,
@@ -147,7 +164,8 @@ public class AgentService(IClaudeClient claude, DataService data)
                 JsonSerializer.Serialize(
                     await data.GetApplicationsAsync(
                         month,
-                        args?["application_id"]?.GetValue<int>()),
+                        args?["application_id"]?.GetValue<int>(),
+                        args?["application_name"]?.GetValue<string>()),
                     JsonOpts),
 
             "get_product_risk" =>
@@ -161,6 +179,14 @@ public class AgentService(IClaudeClient claude, DataService data)
                 JsonSerializer.Serialize(
                     await data.GetCostByProductAsync(month), JsonOpts),
 
+            "get_donor_candidates" =>
+                JsonSerializer.Serialize(
+                    await data.GetDonorCandidatesAsync(
+                        args?["application_id"]?.GetValue<int>(),
+                        args?["application_name"]?.GetValue<string>(),
+                        month),
+                    JsonOpts),
+
             _ => JsonSerializer.Serialize(new { error = $"Unknown tool: {toolUse.Name}" })
         };
     }
@@ -168,7 +194,11 @@ public class AgentService(IClaudeClient claude, DataService data)
     private static IList<Anthropic.SDK.Common.Tool> BuildTools() =>
     [
         MakeTool("get_capacity_by_division",
-            "Get resource count, cost breakdown, and allocation percentage by division.",
+            "Get resource count, cost breakdown, and allocation percentage by division. " +
+            "Returns pre-computed company-wide totals: total_resource_count, total_monthly_cost, " +
+            "total_allocated_monthly_cost, total_unallocated_monthly_cost, and overall_allocation_pct " +
+            "(headcount-weighted across all divisions). Use these for company-wide questions — " +
+            "do not sum the divisions list yourself.",
             new JsonObject
             {
                 ["division"] = Prop("string",  "Filter to a specific division name."),
@@ -185,7 +215,9 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["month"]         = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_unallocated_resources",
-            "List active resources whose total allocation is below a threshold.",
+            "List active resources whose total allocation is below a threshold. " +
+            "Returns total_resource_count (pre-computed sum across all divisions) and " +
+            "total_idle_monthly_cost — do not count or sum the resources list yourself.",
             new JsonObject
             {
                 ["division"]      = Prop("string", "Filter by division name."),
@@ -193,14 +225,19 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["month"]         = Prop("string", "Month in YYYY-MM format.")
             }),
         MakeTool("get_application_risk",
-            "Get application risk classification (high/medium/low) based on support coverage against min and recommended FTE thresholds.",
+            "Get application risk classification (high/medium/low) based on support coverage against min and recommended FTE thresholds. " +
+            "Prefer application_name when you know the name but not the numeric ID.",
             new JsonObject
             {
-                ["application_id"] = Prop("integer", "Filter to a specific application ID."),
-                ["month"]          = Prop("string",  "Month in YYYY-MM format.")
+                ["application_name"] = Prop("string",  "Application name (e.g. \"AuthService\"). Use this when you know the name but not the ID."),
+                ["application_id"]   = Prop("integer", "Application ID — use only when already known from a prior call."),
+                ["month"]            = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_product_risk",
-            "Get product risk (max-wins over transitive application dependency closure) with contributing app breakdown.",
+            "Get product risk (max-wins over transitive application dependency closure) with contributing app breakdown. " +
+            "Returns pre-computed risk-level aggregates: high_risk_product_count, medium_risk_product_count, " +
+            "low_risk_product_count, total_high_risk_arr_usd, total_medium_risk_arr_usd. " +
+            "Use these for portfolio-wide questions — do not filter or sum the products list yourself.",
             new JsonObject
             {
                 ["product_id"] = Prop("integer", "Filter to a specific product ID."),
@@ -211,6 +248,19 @@ public class AgentService(IClaudeClient claude, DataService data)
             new JsonObject
             {
                 ["month"] = Prop("string", "Month in YYYY-MM format.")
+            }),
+        MakeTool("get_donor_candidates",
+            "Get donor candidates for an under-resourced application: resources in the same division " +
+            "currently mapped to Project or Minor Changes activities who could be reassigned to the " +
+            "application's Support activity. Also returns coverage statistics (current FTE, min, gap) " +
+            "and pre-computed unique_resource_count and total_allocation_count — use these for counts, " +
+            "do not count the candidates list yourself. " +
+            "Prefer application_name when you know the name but not the numeric ID.",
+            new JsonObject
+            {
+                ["application_name"] = Prop("string",  "Application name (e.g. \"AuthService\"). Use this when you know the name but not the ID."),
+                ["application_id"]   = Prop("integer", "Application ID — use only when already known from a prior get_application_risk call."),
+                ["month"]            = Prop("string",  "Month in YYYY-MM format.")
             })
     ];
 

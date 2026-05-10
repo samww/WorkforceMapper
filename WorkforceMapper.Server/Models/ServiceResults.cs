@@ -10,6 +10,15 @@ public record CapacityResult(
     decimal AllocationPct
 );
 
+public record CapacitySummaryResult(
+    int TotalResourceCount,
+    decimal TotalMonthlyCost,
+    decimal TotalAllocatedMonthlyCost,
+    decimal TotalUnallocatedMonthlyCost,
+    decimal OverallAllocationPct,
+    List<CapacityResult> Divisions
+);
+
 public record AllocationResult(
     int ActivityId,
     string ActivityName,
@@ -45,6 +54,7 @@ public record UnallocatedDivisionGroup(
 );
 
 public record UnallocatedResourcesResult(
+    int TotalResourceCount,
     decimal TotalIdleMonthlyCost,
     List<UnallocatedDivisionGroup> Divisions
 );
@@ -60,6 +70,41 @@ public record ProductCostSummary(
     decimal TotalPayroll,
     decimal TotalMappedCost,
     List<ProductCostResult> Products
+);
+
+public record DonorCandidateRow(
+    string ResourceName,
+    string ActivityName,
+    string ActivityType,
+    int Percent,
+    decimal ImpliedMonthlyCost,
+    double AllocationFte,
+    decimal CostPerFte,
+    double GapCoveragePct,
+    double CumulativeFte,
+    double CumulativeGapCoveragePct
+);
+
+public record DonorCandidatesResult(
+    int ApplicationId,
+    string ApplicationName,
+    string Division,
+    double CurrentCoverageFte,
+    double MinSupportFte,
+    double RecommendedSupportFte,
+    double GapFte,
+    int UniqueResourceCount,
+    int TotalAllocationCount,
+    List<DonorCandidateRow> Candidates
+);
+
+public record ProductRiskSummary(
+    int HighRiskProductCount,
+    int MediumRiskProductCount,
+    int LowRiskProductCount,
+    decimal TotalHighRiskArrUsd,
+    decimal TotalMediumRiskArrUsd,
+    List<ProductRiskDto> Products
 );
 
 public record OverallocatedResult(
