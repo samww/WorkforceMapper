@@ -163,6 +163,73 @@ public class DataServiceTests
         Assert.Equal(112m, pe.AllocationPct);
     }
 
+    [Fact]
+    public async Task GetCapacityByDivision_FullyConstrainedDivisions_ListsOnlyDivisionsAt100Pct()
+    {
+        // Division A: 1 resource at 100% → fully constrained
+        // Division B: 1 resource at 80% → not fully constrained
+        await using var context = CreateContext();
+
+        var resA = new Resource
+        {
+            ResourceId = "FC00001", Name = "Full A", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Division A", Country = "UK", MonthlyRate = 5000m,
+            Jan = 0, Feb = 0, Mar = 0, Apr = 0, May = 1,
+            Jun = 0, Jul = 0, Aug = 0, Sep = 0, Oct = 0, Nov = 0, Dec = 0
+        };
+        var resB = new Resource
+        {
+            ResourceId = "FC00002", Name = "Slack B", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Division B", Country = "UK", MonthlyRate = 5000m,
+            Jan = 0, Feb = 0, Mar = 0, Apr = 0, May = 1,
+            Jun = 0, Jul = 0, Aug = 0, Sep = 0, Oct = 0, Nov = 0, Dec = 0
+        };
+        context.Resources.AddRange(resA, resB);
+        await context.SaveChangesAsync();
+
+        context.Mappings.Add(new Mapping { ResourceId = resA.Id, ActivityId = 1, Month = "2026-05", Percent = 100 });
+        context.Mappings.Add(new Mapping { ResourceId = resB.Id, ActivityId = 1, Month = "2026-05", Percent = 80 });
+        await context.SaveChangesAsync();
+
+        var service = new DataService(context);
+        var result = await service.GetCapacityByDivisionAsync("2026-05");
+
+        Assert.Contains("Division A", result.FullyConstrainedDivisions);
+        Assert.DoesNotContain("Division B", result.FullyConstrainedDivisions);
+    }
+
+    [Fact]
+    public async Task GetCapacityByDivision_FullyConstrainedDivisions_ListsMultipleDivisions_WhenAllAt100Pct()
+    {
+        // Two divisions both at 100%: both should appear in FullyConstrainedDivisions
+        await using var context = CreateContext();
+
+        foreach (var (id, div) in new[] { ("FC00010", "Div X"), ("FC00011", "Div Y") })
+        {
+            var r = new Resource
+            {
+                ResourceId = id, Name = $"Resource {id}", ResourceType = "Employee",
+                Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+                Division = div, Country = "UK", MonthlyRate = 5000m,
+                Jan = 0, Feb = 0, Mar = 0, Apr = 0, May = 1,
+                Jun = 0, Jul = 0, Aug = 0, Sep = 0, Oct = 0, Nov = 0, Dec = 0
+            };
+            context.Resources.Add(r);
+            await context.SaveChangesAsync();
+            context.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 1, Month = "2026-05", Percent = 100 });
+            await context.SaveChangesAsync();
+        }
+
+        var service = new DataService(context);
+        var result = await service.GetCapacityByDivisionAsync("2026-05");
+
+        Assert.Equal(2, result.FullyConstrainedDivisions.Count);
+        Assert.Contains("Div X", result.FullyConstrainedDivisions);
+        Assert.Contains("Div Y", result.FullyConstrainedDivisions);
+    }
+
     // --- Cycle 10: regression — Unattributed line unchanged post risk feature ---
 
     [Fact]

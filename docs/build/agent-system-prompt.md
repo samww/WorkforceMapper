@@ -35,6 +35,5 @@ least one tool before answering. Cite specific division names, activity names, m
 figures, and allocation percentages from tool results. Flag clearly when the answer requires
 data not available in the tools.
 
-Respond concisely and precisely. When surfacing cost figures, round to the nearest $1,000.
-When a question cannot be answered with the available tools, say so clearly.
+Respond concisely and precisely. When a question cannot be answered with the available tools, say so clearly.
 ```

@@ -64,7 +64,7 @@ public class DataService(WorkforceDbContext context)
                     r.Mappings.Where(m => m.Month == month).Sum(m => r.MonthlyRate * m.Percent / 100m));
                 var sumPct = list.Sum(r =>
                     r.Mappings.Where(m => m.Month == month).Sum(m => m.Percent));
-                var allocationPct = count > 0 ? sumPct / count : 0m;
+                var allocationPct = Math.Round(count > 0 ? sumPct / count : 0m, 1);
                 var typeSplit = list
                     .GroupBy(r => r.ResourceType)
                     .ToDictionary(g2 => g2.Key, g2 => g2.Count());
@@ -81,13 +81,20 @@ public class DataService(WorkforceDbContext context)
             .Sum(r => r.Mappings.Where(m => m.Month == month).Sum(m => (decimal)m.Percent));
         var overallAllocationPct = totalCount > 0 ? totalSumPct / totalCount : 0m;
 
+        var fullyConstrained = divisions
+            .Where(d => d.AllocationPct >= 100m)
+            .Select(d => d.Division)
+            .OrderBy(n => n)
+            .ToList();
+
         return new CapacitySummaryResult(
             totalCount,
             divisions.Sum(d => d.MonthlyCost),
             divisions.Sum(d => d.AllocatedMonthlyCost),
             divisions.Sum(d => d.UnallocatedMonthlyCost),
             overallAllocationPct,
-            divisions);
+            divisions,
+            fullyConstrained);
     }
 
     public async Task<ActivityAllocationsResult> GetActivityAllocationsAsync(
@@ -297,8 +304,9 @@ public class DataService(WorkforceDbContext context)
             .Where(r => GetMonthFlag(r, month) == 1)
             .Sum(r => r.MonthlyRate);
         var totalMappedCost = activeMappings.Sum(m => m.Resource.MonthlyRate * m.Percent / 100m);
+        var totalArrUsd = productCosts.Values.Sum(v => v.ArrUsd);
 
-        return new ProductCostSummary(totalPayroll, totalMappedCost, results);
+        return new ProductCostSummary(totalPayroll, totalMappedCost, totalArrUsd, results);
     }
 
     public async Task<List<OverallocatedResult>> GetOverallocatedResourcesAsync(

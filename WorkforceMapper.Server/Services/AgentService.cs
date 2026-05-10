@@ -35,6 +35,8 @@ public class AgentService(IClaudeClient claude, DataService data)
         - get_cost_by_product returns an "Unattributed" line for mapped cost that cannot be traced to
           any product (e.g. AuthService support, ObservabilityStack support, DevPortal Rebuild — shared
           infrastructure overhead). This is deliberate, not a data quality issue.
+          Use total_arr_usd (pre-computed) for the company-wide ARR total — do not sum arr_usd
+          values from the products list yourself.
         - active_resource_count reflects resources billing in the queried month (active flag = 1);
           resource_count is total headcount. These differ when resources join or leave mid-year.
 
@@ -52,12 +54,19 @@ public class AgentService(IClaudeClient claude, DataService data)
           resources and total_allocation_count for the number of allocation rows — do not count the
           list yourself. Do not compose donor candidates manually from get_activity_allocations calls.
 
-        Answer only from tool results — do not estimate or infer allocation figures. Always call at
-        least one tool before answering. Cite specific division names, activity names, monthly cost
-        figures, and allocation percentages from tool results. Flag clearly when the answer requires
-        data not available in the tools.
+        - When asked which division is most constrained on capacity, use get_capacity_by_division.
+          The result includes a pre-computed fully_constrained_divisions list (all divisions at 100%
+          allocation). If this list contains more than one division, they are equally constrained —
+          state that clearly rather than picking one as "most" constrained. Only if exactly one
+          division appears in fully_constrained_divisions, or if you must break a tie, explain the
+          tiebreaker (e.g. largest headcount or cost) and label it as such.
 
-        Respond concisely and precisely. When surfacing cost figures, round to the nearest $1,000.
+        Answer only from tool results — do not estimate or infer allocation figures. Always call at
+          least one tool before answering. Cite specific division names, activity names, monthly cost
+          figures, and allocation percentages from tool results. Flag clearly when the answer requires
+          data not available in the tools.
+
+          Respond concisely and precisely. When surfacing cost figures, round to the nearest $1,000.
         When a question cannot be answered with the available tools, say so clearly.
         When the answer involves resource allocations, always include a per-resource breakdown table
         showing resource name, allocation percentage, and implied monthly cost — never summarise these
@@ -198,7 +207,10 @@ public class AgentService(IClaudeClient claude, DataService data)
             "Returns pre-computed company-wide totals: total_resource_count, total_monthly_cost, " +
             "total_allocated_monthly_cost, total_unallocated_monthly_cost, and overall_allocation_pct " +
             "(headcount-weighted across all divisions). Use these for company-wide questions — " +
-            "do not sum the divisions list yourself.",
+            "do not sum the divisions list yourself. " +
+            "Also returns fully_constrained_divisions: pre-computed list of division names whose " +
+            "allocation_pct is at 100%. Use this list directly when answering capacity-constraint " +
+            "questions — do not filter the divisions list yourself.",
             new JsonObject
             {
                 ["division"] = Prop("string",  "Filter to a specific division name."),
@@ -244,7 +256,10 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["month"]      = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_cost_by_product",
-            "Get total monthly cost attributed to each product, plus an Unattributed line.",
+            "Get total monthly cost attributed to each product, plus an Unattributed line. " +
+            "Returns pre-computed totals: total_payroll (active headcount), total_mapped_cost, " +
+            "and total_arr_usd (sum of ARR across all products). " +
+            "Use total_arr_usd for the company-wide ARR figure — do not sum arr_usd values yourself.",
             new JsonObject
             {
                 ["month"] = Prop("string", "Month in YYYY-MM format.")

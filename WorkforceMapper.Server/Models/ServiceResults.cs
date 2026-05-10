@@ -16,7 +16,8 @@ public record CapacitySummaryResult(
     decimal TotalAllocatedMonthlyCost,
     decimal TotalUnallocatedMonthlyCost,
     decimal OverallAllocationPct,
-    List<CapacityResult> Divisions
+    List<CapacityResult> Divisions,
+    List<string> FullyConstrainedDivisions
 );
 
 public record AllocationResult(
@@ -69,6 +70,7 @@ public record ProductCostResult(
 public record ProductCostSummary(
     decimal TotalPayroll,
     decimal TotalMappedCost,
+    decimal TotalArrUsd,
     List<ProductCostResult> Products
 );
 
