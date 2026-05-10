@@ -152,6 +152,81 @@ public class AgentServiceTests
         Assert.DoesNotContain(captured.Tools, t => t.Function?.Name == "get_overallocated_resources");
     }
 
+    [Fact]
+    public async Task RunAsync_ToolList_ApplicationRiskTool_HasApplicationNameParameter()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var appRiskTool = captured!.Tools!.Single(t => t.Function?.Name == "get_application_risk");
+        var props = appRiskTool.Function!.Parameters?["properties"];
+        Assert.NotNull(props?["application_name"]);
+    }
+
+    [Fact]
+    public async Task RunAsync_Temperature_IsZero()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        Assert.Equal(0, captured!.Temperature);
+    }
+
+    [Fact]
+    public async Task RunAsync_DispatchesApplicationRisk_ByName_ReturnsOnlyAuthService()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        string? toolResultJson = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_application_risk", "tc_ar_name",
+                @"{""application_name"":""AuthService"",""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+                p.Messages.Any(m => m.Content != null &&
+                    m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_ar_name")))))
+            .Callback<MessageParameters>(p =>
+            {
+                var tr = p.Messages
+                    .SelectMany(m => m.Content?.OfType<ToolResultContent>() ?? [])
+                    .First(tr => tr.ToolUseId == "tc_ar_name");
+                toolResultJson = tr.Content?.OfType<TextContent>().FirstOrDefault()?.Text;
+            })
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("Is AuthService at risk?", "2026-05", _ => Task.CompletedTask);
+
+        Assert.NotNull(toolResultJson);
+        Assert.Contains("AuthService", toolResultJson);
+        // Only one application returned — not all 18
+        var parsed = System.Text.Json.JsonSerializer.Deserialize<List<System.Text.Json.Nodes.JsonObject>>(toolResultJson!);
+        Assert.NotNull(parsed);
+        Assert.Single(parsed);
+    }
+
     // ── Cycle 6 ─────────────────────────────────────────────────────────────
 
     [Fact]
@@ -205,6 +280,25 @@ public class AgentServiceTests
     // ── Cycle 8 ─────────────────────────────────────────────────────────────
 
     [Fact]
+    public async Task RunAsync_ToolList_ContainsDonorCandidates_Tool()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        Assert.NotNull(captured?.Tools);
+        Assert.Contains(captured.Tools, t => t.Function?.Name == "get_donor_candidates");
+    }
+
+    [Fact]
     public async Task RunAsync_ComposesDonorCandidates_FromUnallocatedAndActivityAllocations()
     {
         await using var ctx = CreateContext();
@@ -229,6 +323,42 @@ public class AgentServiceTests
                 m.Content != null &&
                 m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_aa"))
         )), Times.AtLeastOnce);
+    }
+
+    // ── Cycle 9 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_DispatchesDonorCandidates_ReturnsJsonWithApplicationName()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        string? toolResultJson = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_donor_candidates", "tc_dc",
+                @"{""application_id"":4,""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+                p.Messages.Any(m => m.Content != null &&
+                    m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_dc")))))
+            .Callback<MessageParameters>(p =>
+            {
+                var tr = p.Messages
+                    .SelectMany(m => m.Content?.OfType<ToolResultContent>() ?? [])
+                    .First(tr => tr.ToolUseId == "tc_dc");
+                toolResultJson = tr.Content?.OfType<TextContent>().FirstOrDefault()?.Text;
+            })
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("Where can we find capacity for AuthService?", "2026-05", _ => Task.CompletedTask);
+
+        Assert.NotNull(toolResultJson);
+        Assert.Contains("AuthService", toolResultJson);
+        Assert.Contains("application_name", toolResultJson);
     }
 
     // ── Cycle 4 ─────────────────────────────────────────────────────────────

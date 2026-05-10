@@ -4,7 +4,7 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **#20** (query chips). Issues #11–#19, #21–#23 done; `CONTEXT.md` reflects current state.
+Active iteration: **#20** (query chips). Issues #11–#19, #21–#23, #26 done; `CONTEXT.md` reflects current state.
 
 Only read deeper docs when directly relevant to the issue being worked on:
 

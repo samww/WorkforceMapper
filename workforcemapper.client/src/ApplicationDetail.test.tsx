@@ -10,7 +10,8 @@ const APP = {
     { id: 1, name: 'DataLicensing', arr_usd: 6200000 },
     { id: 2, name: 'MediaMeasurement', arr_usd: 5100000 },
   ],
-  dependents: [],
+  transitive_dependent_apps: [],
+  dependent_app_count: 0,
 };
 
 describe('ApplicationDetail', () => {

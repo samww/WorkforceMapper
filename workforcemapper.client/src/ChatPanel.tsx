@@ -4,10 +4,10 @@ import ToolCallIndicator from './ToolCallIndicator';
 const DEFAULT_MONTH = '2026-05';
 
 const CHIPS = [
-  'Which divisions have unallocated monthly cost this month?',
-  'How much are we spending on the AuthService Replacement project per month?',
-  'Which resources are over-allocated this month?',
+  'Why is AuthService at risk this month and where could we find the capacity to fix it?',
+  'What unallocated resource cost does Data Collection carry this month?',
   'What is the monthly cost attribution by product?',
+  'Which division is most constrained on capacity this month?',
 ];
 
 interface Props {

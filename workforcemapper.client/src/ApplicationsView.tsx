@@ -16,7 +16,8 @@ export interface ApplicationRisk {
   current_coverage_fte: number;
   risk: 'high' | 'medium' | 'low';
   dependent_products: ProductRef[];
-  dependents: { id: number; name: string; risk: string }[];
+  transitive_dependent_apps: { id: number; name: string; risk: string }[];
+  dependent_app_count: number;
 }
 
 interface Props {

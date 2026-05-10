@@ -13,6 +13,7 @@
 **/wwwroot/dist/
 
 # Node / Vite
+node_modules/
 workforcemapper.client/node_modules/
 workforcemapper.client/dist/
 workforcemapper.client/.vite/

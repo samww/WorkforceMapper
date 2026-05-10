@@ -26,10 +26,10 @@ describe('ChatPanel', () => {
   it('clicking a chip populates the textarea with its query text', async () => {
     render(<ChatPanel />);
     await userEvent.click(
-      screen.getByRole('button', { name: /which divisions have unallocated/i })
+      screen.getByRole('button', { name: /why is authservice at risk/i })
     );
     expect(screen.getByRole('textbox')).toHaveValue(
-      'Which divisions have unallocated monthly cost this month?'
+      'Why is AuthService at risk this month and where could we find the capacity to fix it?'
     );
   });
 
@@ -42,13 +42,13 @@ describe('ChatPanel', () => {
 
     render(<ChatPanel />);
     await userEvent.click(
-      screen.getByRole('button', { name: /which divisions have unallocated/i })
+      screen.getByRole('button', { name: /why is authservice at risk/i })
     );
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
 
     expect(capturedBody).toBeDefined();
     const body = JSON.parse(capturedBody!);
-    expect(body.query).toBe('Which divisions have unallocated monthly cost this month?');
+    expect(body.query).toBe('Why is AuthService at risk this month and where could we find the capacity to fix it?');
     expect(body.month).toBe(DEFAULT_MONTH);
   });
 
@@ -98,7 +98,7 @@ describe('ChatPanel', () => {
 
     expect(screen.queryByText('Some answer.')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /which divisions have unallocated/i })
+      screen.getByRole('button', { name: /why is authservice at risk/i })
     ).toBeInTheDocument();
   });
 

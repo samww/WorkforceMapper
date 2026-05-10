@@ -184,6 +184,11 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
       return;
     }
 
+    if (newActId !== originalActivityId && resource.mappings.some(m => m.activity_id === newActId)) {
+      setError('Activity is already mapped for this resource in this month.');
+      return;
+    }
+
     setSaving(true);
     if (newActId !== originalActivityId) {
       const del = await fetch(`/api/mappings?resource_id=${resource.id}&activity_id=${originalActivityId}&month=${month}`, { method: 'DELETE' });
@@ -208,6 +213,11 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
 
     if (!resource.active) {
       setError(`${resource.name} is not active in ${monthLabel(month)}`);
+      return;
+    }
+
+    if (resource.mappings.some(m => m.activity_id === parseInt(newActivityId))) {
+      setError('Activity is already mapped for this resource in this month.');
       return;
     }
 

@@ -47,5 +47,7 @@ public record ApplicationRiskDto(
     double current_coverage_fte,
     string risk,
     List<ProductRefDto> dependent_products,
-    List<ContributingAppDto> dependents
+    List<ContributingAppDto> transitive_dependent_apps,
+    decimal total_dependent_arr_usd,
+    int dependent_app_count
 );

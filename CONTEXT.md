@@ -49,6 +49,7 @@ Month and division filter state lives in `App.tsx` and is passed as props into a
 - Active flag gates all cost — `active flag = 0` → cost = 0 for that month regardless of mappings
 - Hard 100% allocation cap — `PUT /api/mappings` and `DELETE /api/mappings` reject writes that exceed the cap or target a month in which the resource is inactive (ADR 6)
 - Integer-only percent — `PUT /api/mappings` rejects non-integer or zero `percent` values; valid range is 1–100 per mapping
+- No duplicate activity per resource+month — the add and edit forms in `MappingView` block saving a mapping whose `activity_id` already exists for that resource in that month; enforced client-side only (the API uses upsert intentionally for the edit path)
 - No freeform SQL — all Claude queries go through the six typed tool methods (ADR 3)
 - No Excel upload, no UploadService, no SuggestionService (out of scope)
 

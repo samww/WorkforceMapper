@@ -113,7 +113,7 @@ describe('MappingView', () => {
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
-    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '2');
     await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '50');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
@@ -139,7 +139,7 @@ describe('MappingView', () => {
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
-    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '2');
     await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '50');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
@@ -160,7 +160,7 @@ describe('MappingView', () => {
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
-    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '2');
     await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '50');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
@@ -194,7 +194,7 @@ describe('MappingView', () => {
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
-    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '2');
     await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '20');
     await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
 
@@ -229,7 +229,7 @@ describe('MappingView', () => {
 
     const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
     await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
-    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '2');
     await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '20');
 
     void userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
@@ -354,5 +354,55 @@ describe('MappingView', () => {
 
     expect((percentInput as HTMLInputElement).value).not.toMatch(/[a-zA-Z]/);
     expect((percentInput as HTMLInputElement).value).toBe('40');
+  });
+
+  it('add: blocks saving a mapping with the same activity as an existing mapping', async () => {
+    const fetchSpy = mockFetch();
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    // Alice already has activity_id=1 (AuthService). Try to add the same one.
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '20');
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
+
+    expect(await within(aliceCard).findByText(/already mapped/i)).toBeInTheDocument();
+    const putCalls = fetchSpy.mock.calls.filter(([, opts]) => (opts as RequestInit)?.method === 'PUT');
+    expect(putCalls).toHaveLength(0);
+  });
+
+  it('edit: blocks changing activity to one that already has a mapping', async () => {
+    // Bob has two mappings; try to change one to the other's activity
+    const twoMappingResources = [
+      {
+        ...RESOURCES[1],
+        mappings: [
+          { activity_id: 1, activity_name: 'AuthService — Application Support', percent: 50 },
+          { activity_id: 2, activity_name: 'CoreDataWarehouse — Application Support', percent: 50 },
+        ],
+      },
+    ];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes('/api/resources')) return Promise.resolve({ ok: true, json: () => Promise.resolve(twoMappingResources) } as Response);
+      if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Bob Smith');
+
+    const bobCard = screen.getByText('Bob Smith').closest('[data-card]')!;
+    // Edit the first mapping (activity_id=1) and try to change it to activity_id=2 (already mapped)
+    await userEvent.click(within(bobCard).getByRole('button', { name: /edit AuthService/i }));
+    const selects = within(bobCard).getAllByRole('combobox');
+    await userEvent.selectOptions(selects[0], '2');
+    await userEvent.click(within(bobCard).getByRole('button', { name: /^save$/i }));
+
+    expect(await within(bobCard).findByText(/already mapped/i)).toBeInTheDocument();
+    const putCalls = fetchSpy.mock.calls.filter(([, opts]) => (opts as RequestInit)?.method === 'PUT');
+    expect(putCalls).toHaveLength(0);
   });
 });
