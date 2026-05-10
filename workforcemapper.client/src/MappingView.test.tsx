@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MappingView from './MappingView';
@@ -200,6 +200,45 @@ describe('MappingView', () => {
 
     expect(within(aliceCard).getByRole('status')).toBeInTheDocument();
     resolvePut();
+  });
+
+  it('saving indicator persists until resource refresh resolves after successful PUT', async () => {
+    let putDone = false;
+    let resolveRefreshGet!: () => void;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url, opts) => {
+      const u = String(url);
+      if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
+      if ((opts as RequestInit)?.method === 'PUT') {
+        putDone = true;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+      }
+      if (u.includes('/api/resources')) {
+        if (putDone && u === '/api/resources?month=2026-05') {
+          return new Promise(resolve => {
+            resolveRefreshGet = () => resolve({ ok: true, json: () => Promise.resolve(RESOURCES) } as Response);
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESOURCES) } as Response);
+      }
+      return Promise.resolve({ ok: true } as Response);
+    });
+
+    render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    const aliceCard = screen.getByText('Alice Chen').closest('[data-card]')!;
+    await userEvent.click(within(aliceCard).getByRole('button', { name: /add mapping/i }));
+    await userEvent.selectOptions(within(aliceCard).getByRole('combobox'), '1');
+    await userEvent.type(within(aliceCard).getByPlaceholderText('%'), '20');
+
+    void userEvent.click(within(aliceCard).getByRole('button', { name: /^add$/i }));
+    await waitFor(() => expect(putDone).toBe(true));
+
+    expect(within(aliceCard).getByRole('status')).toBeInTheDocument();
+
+    act(() => { resolveRefreshGet?.(); });
+    await waitFor(() => expect(within(aliceCard).queryByRole('status')).not.toBeInTheDocument());
   });
 
   it('saving the edit form PUTs the updated mapping', async () => {

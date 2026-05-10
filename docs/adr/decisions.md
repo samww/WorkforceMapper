@@ -8,7 +8,9 @@
 
 **Key constraints:**
 - No concurrent writes — single-user demo; acceptable.
-- SQLite file persisted via named Docker volume; lost if volume deleted.
+- WAL journal mode enabled at startup (`PRAGMA journal_mode=WAL` in `Program.cs` after `MigrateAsync`). Required because ASP.NET Core handles requests concurrently; without WAL, simultaneous reads and a write cause `SQLITE_BUSY` → 500. WAL is a persistent file setting, idempotent to set on every boot.
+- Azure Container Apps is pinned to exactly 1 replica (`--min-replicas 1 --max-replicas 1` in `scripts/deploy.ps1`). SQLite cannot be shared across processes; multiple replicas each get an isolated copy of the database, causing split-brain state.
+- SQLite file persisted via named Docker volume (local); ephemeral per container restart in Azure (reseeds from `data/*.json` on every boot — by design for a demo).
 - Switching to Azure SQL = replace connection string + provider package only; entities, migrations, and LINQ queries are database-agnostic.
 
 ---

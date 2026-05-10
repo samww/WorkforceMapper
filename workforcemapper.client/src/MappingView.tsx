@@ -61,11 +61,11 @@ export default function MappingView({ month, division, onOpenChat }: MappingView
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name));
 
-  function refreshResources() {
-    fetch(`/api/resources?month=${month}`)
+  function refreshResources(): Promise<void> {
+    refreshZeroMonths();
+    return fetch(`/api/resources?month=${month}`)
       .then((r) => r.json())
       .then(setResources);
-    refreshZeroMonths();
   }
 
   if (loading) return (
@@ -108,7 +108,7 @@ export default function MappingView({ month, division, onOpenChat }: MappingView
               resource={resource}
               activities={activities}
               month={month}
-              onMappingChange={refreshResources}
+              onMappingChange={refreshResources as () => Promise<void>}
             />
           ))}
         </div>
@@ -125,7 +125,7 @@ interface CardProps {
   resource: Resource;
   activities: Activity[];
   month: string;
-  onMappingChange: () => void;
+  onMappingChange: () => Promise<void>;
 }
 
 function allocationColor(pct: number) {
@@ -194,10 +194,10 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ resource_id: resource.id, activity_id: newActId, month, percent: newPct }),
     });
-    setSaving(false);
-    if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
+    if (!res.ok) { setSaving(false); setError(await parseApiError(res, resource.name, month)); return; }
     setEditingActivityId(null);
-    onMappingChange();
+    await onMappingChange();
+    setSaving(false);
   }
 
   async function handleAdd() {
@@ -222,12 +222,12 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
         percent: pct,
       }),
     });
-    setSaving(false);
-    if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
+    if (!res.ok) { setSaving(false); setError(await parseApiError(res, resource.name, month)); return; }
     setAdding(false);
     setNewActivityId('');
     setNewPercent('');
-    onMappingChange();
+    await onMappingChange();
+    setSaving(false);
   }
 
   async function handleDelete(activityId: number) {
@@ -238,13 +238,21 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
     }
     setSaving(true);
     const res = await fetch(`/api/mappings?resource_id=${resource.id}&activity_id=${activityId}&month=${month}`, { method: 'DELETE' });
+    if (!res.ok) { setSaving(false); setError(await parseApiError(res, resource.name, month)); return; }
+    await onMappingChange();
     setSaving(false);
-    if (!res.ok) { setError(await parseApiError(res, resource.name, month)); return; }
-    onMappingChange();
   }
 
   return (
-    <div data-card className="bg-gray-800 rounded-lg p-4 flex flex-col gap-2 border border-gray-700">
+    <div data-card className="relative bg-gray-800 rounded-lg p-4 flex flex-col gap-2 border border-gray-700">
+      {saving && (
+        <div role="status" aria-label="Saving" className="absolute inset-0 bg-gray-900/70 rounded-lg flex items-center justify-center z-10">
+          <div className="flex items-center gap-2 text-sm text-gray-200">
+            <div className="w-5 h-5 rounded-full border-2 border-gray-500 border-t-blue-400 animate-spin" aria-hidden="true" />
+            Saving…
+          </div>
+        </div>
+      )}
       <div className="flex justify-between items-start">
         <div>
           <p className="font-semibold">{resource.name}</p>
@@ -252,10 +260,7 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
           <p className="text-xs text-gray-400">{resource.resource_type} · {resource.country}</p>
           <p className="text-xs text-gray-500 mt-0.5">{resource.division}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {saving && <div role="status" className="w-4 h-4 rounded-full border-2 border-gray-600 border-t-blue-400 animate-spin" />}
-          <span className={`text-sm font-bold ${allocationColor(totalPct)}`}>{totalPct}%</span>
-        </div>
+        <span className={`text-sm font-bold ${allocationColor(totalPct)}`}>{totalPct}%</span>
       </div>
 
       <AllocationBar percent={totalPct} mappings={resource.mappings} />

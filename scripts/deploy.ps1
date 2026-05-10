@@ -92,6 +92,8 @@ if ($AppCount -gt 0) {
         --name $AppName `
         --resource-group $ResourceGroup `
         --image $Image `
+        --min-replicas 1 `
+        --max-replicas 1 `
         --output none
 } else {
     Write-Host "Creating ContainerApp $AppName ..."
@@ -105,8 +107,8 @@ if ($AppCount -gt 0) {
         --registry-password $AcrPass `
         --target-port 8080 `
         --ingress external `
-        --min-replicas 0 `
-        --max-replicas 3 `
+        --min-replicas 1 `
+        --max-replicas 1 `
         --output none
 }
 
