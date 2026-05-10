@@ -311,14 +311,14 @@ function ResourceCard({ resource, activities, month, onMappingChange }: CardProp
               <span className="text-gray-400 mr-2">{m.percent}%</span>
               <button
                 onClick={() => startEdit(m)}
-                className="text-blue-400 hover:text-blue-300 mr-1"
+                className="text-blue-400 hover:text-blue-300 p-2 -m-2 mr-1"
                 aria-label={`Edit ${m.activity_name}`}
               >
                 ✎
               </button>
               <button
                 onClick={() => handleDelete(m.activity_id)}
-                className="text-red-400 hover:text-red-300"
+                className="text-red-400 hover:text-red-300 p-2 -m-2"
                 aria-label={`Remove ${m.activity_name}`}
               >
                 ✕

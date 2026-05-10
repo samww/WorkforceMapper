@@ -4,14 +4,13 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **#19–#20** (mobile, query chips). Issues #11–#18, #21–#23 done; `CONTEXT.md` reflects current state.
+Active iteration: **#20** (query chips). Issues #11–#19, #21–#23 done; `CONTEXT.md` reflects current state.
 
 Only read deeper docs when directly relevant to the issue being worked on:
 
 | Issue | Spec | Blocked by |
 |---|---|---|
-| #2–#18, #21–#23 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
-| #19 Mobile touch targets | `docs/build/issue-19-touch-targets.md` | none |
+| #2–#19, #21–#23 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
 | #20 Demo-aligned query chips | `docs/build/issue-20-query-chips.md` — also read `docs/background/DEMO_SCRIPT.md` | none |
 
 Additional docs (only when needed):
