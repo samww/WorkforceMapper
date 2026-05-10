@@ -24,6 +24,7 @@ interface Props {
   month: string;
   division: string;
   onSelectApp: (app: ApplicationRisk) => void;
+  onOpenChat?: () => void;
 }
 
 const BADGE: Record<string, string> = {
@@ -60,7 +61,7 @@ function CoverageBar({ current, min, recommended }: { current: number; min: numb
   );
 }
 
-export default function ApplicationsView({ month, division, onSelectApp }: Props) {
+export default function ApplicationsView({ month, division, onSelectApp, onOpenChat }: Props) {
   const [apps, setApps] = useState<ApplicationRisk[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,7 +93,17 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
 
   return (
     <div className="p-4">
-      <h2 className="text-xl font-semibold text-gray-100 mb-4">Applications</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-gray-100">Applications</h2>
+        {onOpenChat && (
+          <button
+            onClick={onOpenChat}
+            className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium"
+          >
+            Ask AI
+          </button>
+        )}
+      </div>
       <table className="w-full text-sm text-gray-200">
         <thead>
           <tr className="text-left text-gray-400 border-b border-gray-700">

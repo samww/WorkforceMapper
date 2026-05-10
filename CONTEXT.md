@@ -42,6 +42,8 @@ Default month: **`2026-05`**. This is the initial selected value only — the UI
 
 Month and division filter state lives in `App.tsx` and is passed as props into all three tab views (`MappingView`, `ApplicationsView`, `ProductsView`). Each view accepts `{ month, division }` as props — do not re-introduce local state for these filters.
 
+All three tab views (`MappingView`, `ApplicationsView`, `ProductsView`) also accept an optional `onOpenChat?: () => void` prop. When provided, they render an "Ask AI" button in their header. `App.tsx` passes `chatOpen ? undefined : () => setChatOpen(true)` so the button disappears once the chat panel is already open. Do not render an Ask AI button inside detail screens (`ApplicationDetail`, `ProductDetail`).
+
 ---
 
 ## Key Constraints

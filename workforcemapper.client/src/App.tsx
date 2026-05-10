@@ -80,7 +80,7 @@ export default function App() {
             <MappingView month={month} division={division} onOpenChat={chatOpen ? undefined : () => setChatOpen(true)} />
           )}
           {tab === 'applications' && !selectedApp && (
-            <ApplicationsView month={month} division={division} onSelectApp={setSelectedApp} />
+            <ApplicationsView month={month} division={division} onSelectApp={setSelectedApp} onOpenChat={chatOpen ? undefined : () => setChatOpen(true)} />
           )}
           {tab === 'applications' && selectedApp && (
             <ApplicationDetail
@@ -107,7 +107,7 @@ export default function App() {
             />
           )}
           {tab === 'products' && !selectedProduct && (
-            <ProductsView month={month} division={division} onSelectProduct={setSelectedProduct} />
+            <ProductsView month={month} division={division} onSelectProduct={setSelectedProduct} onOpenChat={chatOpen ? undefined : () => setChatOpen(true)} />
           )}
           {tab === 'products' && selectedProduct && (
             <ProductDetail
