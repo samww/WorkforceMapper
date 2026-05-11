@@ -20,7 +20,9 @@ Pragmenta Insights workforce capacity tool. Resources (employees, contractors, v
 | **application risk** | High / medium / low classification of an application based on capacity coverage relative to its `min_support_fte` and `recommended_support_fte`. |
 | **product risk** | Max-wins aggregation of application risk over the transitive closure of (direct apps + their `application_dependencies`). |
 | **application dependency** | Directed `(application_id, depends_on_application_id)` edge in `application_dependencies`. Used for risk reach; not used for cost attribution. |
-| **donor candidate** | An active resource currently mapped to a Project or Minor Changes activity, surfaced as potential capacity to shift onto a Support activity. Composed by the agent from `get_unallocated_resources` and `get_activity_allocations`. |
+| **donor candidate** | An active resource currently mapped to a Support (surplus only), Minor Changes, or Project activity, surfaced as potential capacity to shift onto an under-resourced application's Support activity. Returned by `get_donor_candidates` in six-tier priority order (same-division tiers 1–3 before cross-divisional tiers 4–6). |
+| **surplus support capacity** | Support FTE mapped to an application in excess of its `recommended_support_fte`. Safe to donate without degrading that application's risk classification. The source for tier-1 (same division) and tier-4 (other division) donor candidates. |
+| **requires_cross_divisional_alignment** | Flag on a donor candidate row indicating the resource sits in a different division from the target application. A transfer requires explicit cross-divisional agreement before acting. True for all tier-4, 5, and 6 candidates; false for tiers 1–3. |
 
 ---
 

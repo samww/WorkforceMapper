@@ -4,7 +4,7 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **none** (no open issues). Issues #11–#23, #26, #27 done; `CONTEXT.md` reflects current state.
+Active iteration: **#29, #30**. Issues #11–#23, #26, #27 done; `CONTEXT.md` reflects current state.
 
 Only read deeper docs when directly relevant to the issue being worked on:
 
@@ -12,9 +12,11 @@ Only read deeper docs when directly relevant to the issue being worked on:
 |---|---|---|
 | #2–#19, #21–#23 (done) | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
 | #20 (done) Demo-aligned query chips | `docs/build/issue-20-query-chips.md` — read only when maintaining existing code | — |
+| #29 Six-tier donor candidate pipeline | `docs/build/issue-29-tiered-donor-candidates.md` | — |
+| #30 Agent surface: six-tier donor prompt | `docs/build/issue-30-agent-donor-prompt.md` | #29 |
 
 Additional docs (only when needed):
-- `docs/build/risk-model.md` — capacity coverage formula, application risk classification, product max-wins aggregation, dependency graph contract (#11, #12, #14)
+- `docs/build/risk-model.md` — capacity coverage formula, application risk classification, product max-wins aggregation, dependency graph contract, donor candidate tier model (#11, #12, #14, #29)
 - `docs/build/db-schema.md` — cost attribution chain, key constraints (#11)
 - `docs/build/synthetic-data-spec.md` — seed data rate tables (only when regenerating `data/*.json` from scratch)
 - `docs/build/agent-system-prompt.md` — verbatim AgentService system prompt (only when maintaining chat agent)

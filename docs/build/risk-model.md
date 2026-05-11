@@ -47,6 +47,19 @@ Cycle handling: visited-set termination. Cycles must not infinite-loop.
 
 Cost attribution is unchanged by the risk model. Risk uses transitive `application_dependencies`; cost uses direct `product_applications` only. The Unattributed line in `get_cost_by_product` continues to capture support cost for foundational apps that no product directly lists.
 
-## Donor candidate (for chat narrative only)
+## Donor candidate tiers (for chat narrative — returned by `get_donor_candidates`)
 
-Active resources currently mapped to Project or Minor Changes activities are donor candidates for shifting capacity to a Support activity. Donor identification is composed by the agent from `get_unallocated_resources` and `get_activity_allocations`; there is no dedicated tool.
+Active resources who could be shifted onto an under-resourced application's Support activity. Returned in six-tier priority order. Within each tier, sorted by `cost_per_fte` ascending. Cumulative FTE and `cumulative_gap_coverage_pct` accumulate across all tiers.
+
+| Tier | Source | Division | `requires_cross_divisional_alignment` |
+|---|---|---|---|
+| 1 | Support mappings where `coverage > recommended_support_fte` (surplus FTE only) | Same as target app | false |
+| 2 | All Minor Changes mappings | Same as target app | false |
+| 3 | All Project mappings | Same as target app | false |
+| 4 | Support surplus as tier 1 | Other divisions | true |
+| 5 | All Minor Changes mappings | Other divisions | true |
+| 6 | All Project mappings | Other divisions | true |
+
+Exclusion rule: a resource already mapped to the target application's Support activity must not appear in any tier.
+
+Surplus support FTE for a donor application = `max(0, current_coverage_fte - recommended_support_fte)`. An application at exactly `recommended_support_fte` contributes zero surplus and yields no tier-1/4 candidates.
