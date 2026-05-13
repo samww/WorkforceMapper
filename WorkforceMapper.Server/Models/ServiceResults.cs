@@ -85,7 +85,17 @@ public record DonorCandidateRow(
     double GapCoveragePct,
     double CumulativeFte,
     double CumulativeGapCoveragePct,
-    bool RequiresCrossDivisionalAlignment
+    bool RequiresCrossDivisionalAlignment,
+    bool InFewestChangesCombination = false,
+    int DonablePercent = 0
+);
+
+public record FewestChangesCombinationSummary(
+    int RowCount,
+    int DistinctResourceCount,
+    double TotalFte,
+    decimal TotalMonthlyCost,
+    double GapCoverageReachedPct
 );
 
 public record DonorCandidatesResult(
@@ -99,7 +109,8 @@ public record DonorCandidatesResult(
     int UniqueResourceCount,
     int TotalAllocationCount,
     List<DonorCandidateRow> Candidates,
-    double SurplusSupportFteAvailable
+    double SurplusSupportFteAvailable,
+    FewestChangesCombinationSummary? FewestChangesCombination = null
 );
 
 public record ProductRiskSummary(

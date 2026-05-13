@@ -42,17 +42,40 @@ public class AgentService(IClaudeClient claude, DataService data)
 
         - When asked where capacity could be found to address an under-resourced application, call
           get_donor_candidates. Pass application_name (e.g. "AuthService") — do not guess or invent
-          application_id values. The tool returns a pre-joined list of donor candidates (resources in
-          the same division on Project or Minor Changes activities) sorted by cost_per_fte ascending
-          (cheapest FTE first). Each row includes allocation_fte (how much FTE a full transfer adds),
-          gap_coverage_pct (what percentage of the FTE gap that allocation alone would close),
-          cumulative_fte (running FTE total from cheapest candidate through this row), and
-          cumulative_gap_coverage_pct (running gap coverage % from cheapest through this row).
-          To find the minimum-cost combination that closes the gap, select rows in order until
-          cumulative_gap_coverage_pct first reaches or exceeds 100 — do not sum gap_coverage_pct
-          values yourself. Use unique_resource_count (pre-computed) for the count of distinct donor
-          resources and total_allocation_count for the number of allocation rows — do not count the
-          list yourself. Do not compose donor candidates manually from get_activity_allocations calls.
+          application_id values. The tool returns candidates in six-tier priority order: same-division
+          tiers 1–3 (surplus Support, Minor Changes, Project) come first; cross-divisional tiers 4–6
+          (surplus Support, Minor Changes, Project from other divisions) follow. Walk tiers in order —
+          exhaust same-division options (tiers 1–3) before presenting cross-divisional options (tiers 4–6).
+          When your response mentions tiers, briefly explain the tier system to the user: same-division
+          tiers 1–3 draw from surplus Support (tier 1), Minor Changes (tier 2), and Project (tier 3)
+          capacity within the same division as the under-resourced application; cross-divisional tiers 4–6
+          are the same three source types from other divisions.
+          Each row includes allocation_fte, gap_coverage_pct, cumulative_fte, and
+          cumulative_gap_coverage_pct. Each row also carries in_fewest_changes_combination (true for
+          every row that is part of the fewest-changes solution set — the minimum number of allocation
+          rows needed to close the gap, taking the largest-FTE candidates first within each tier).
+          The fewest-changes combination is the complete set of rows where in_fewest_changes_combination
+          is true — every row in that set is required and must be included in your recommendation. Do not
+          present the final row of the table in isolation as the recommended action; the recommendation
+          is the full set of rows where in_fewest_changes_combination is true.
+          Use fewest_changes_combination (pre-computed) for the totals: total_fte, total_monthly_cost,
+          distinct_resource_count, and row_count. Present fewest_changes_combination.distinct_resource_count
+          as the number of distinct people involved and fewest_changes_combination.total_monthly_cost
+          as the total cost of the recommendation — do not sum or count the candidates list yourself.
+          Each row carries donable_percent — the integer allocation % to assign to the target
+          application's Support activity for that resource. For every row where
+          in_fewest_changes_combination is true, state the explicit mapping change required:
+          "[ResourceName]: add [donable_percent]% to [ApplicationName] Support". For tier 1 rows
+          (activity_type Support), also note the source mapping must be reduced by the same amount.
+          For tier 2/3 rows (activity_type Minor Changes or Project), the source mapping is fully
+          removed. Use donable_percent from the row — do not convert from FTE yourself.
+          Use surplus_support_fte_available (pre-computed) when stating how much surplus support capacity
+          exists in the same division — do not derive it from the candidates list.
+          For every candidate row where requires_cross_divisional_alignment is true, surface an explicit
+          warning that the transfer requires cross-divisional sign-off before acting.
+          Use unique_resource_count (pre-computed) for the count of distinct donor resources and
+          total_allocation_count for the number of allocation rows — do not count the list yourself.
+          Do not compose donor candidates manually from get_activity_allocations calls.
 
         - When asked which division is most constrained on capacity, use get_capacity_by_division.
           The result includes a pre-computed fully_constrained_divisions list (all divisions at 100%
@@ -265,11 +288,26 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["month"] = Prop("string", "Month in YYYY-MM format.")
             }),
         MakeTool("get_donor_candidates",
-            "Get donor candidates for an under-resourced application: resources in the same division " +
-            "currently mapped to Project or Minor Changes activities who could be reassigned to the " +
-            "application's Support activity. Also returns coverage statistics (current FTE, min, gap) " +
-            "and pre-computed unique_resource_count and total_allocation_count — use these for counts, " +
-            "do not count the candidates list yourself. " +
+            "Get donor candidates for an under-resourced application in six-tier priority order: " +
+            "same-division tiers 1–3 (surplus Support, Minor Changes, Project) then cross-divisional " +
+            "tiers 4–6 (surplus Support, Minor Changes, Project from other divisions). " +
+            "Each row includes allocation_fte, gap_coverage_pct, cumulative_fte, " +
+            "cumulative_gap_coverage_pct, in_fewest_changes_combination (true for every row that " +
+            "belongs to the fewest-changes solution set — i.e. all rows from first through the row where " +
+            "cumulative_gap_coverage_pct first reaches 100, with candidates sorted largest-FTE-first " +
+            "within each tier), and donable_percent (the integer " +
+            "allocation % to assign to the target application's Support activity for that resource — " +
+            "use this directly, do not convert from FTE). The fewest-changes combination is the " +
+            "complete set of rows where in_fewest_changes_combination is true. " +
+            "fewest_changes_combination is a pre-computed summary of that set: row_count, " +
+            "distinct_resource_count, total_fte, total_monthly_cost, gap_coverage_reached_pct. " +
+            "Use fewest_changes_combination for totals — do not sum or count the candidates list yourself. " +
+            "surplus_support_fte_available is the pre-computed total surplus support FTE in the same " +
+            "division — use it directly when stating same-division surplus, do not derive it from the list. " +
+            "requires_cross_divisional_alignment is true on any tier-4/5/6 candidate and signals that " +
+            "a cross-divisional conversation is needed before acting. " +
+            "Also returns pre-computed unique_resource_count and total_allocation_count — use these " +
+            "for counts, do not count the candidates list yourself. " +
             "Prefer application_name when you know the name but not the numeric ID.",
             new JsonObject
             {

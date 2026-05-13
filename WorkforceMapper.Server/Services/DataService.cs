@@ -204,12 +204,32 @@ public class DataService(WorkforceDbContext context)
         var sorted = tier1.Concat(tier2).Concat(tier3).Concat(tier4).Concat(tier5).Concat(tier6).ToList();
 
         var runningFte = 0.0;
-        var candidates = sorted.Select(c =>
+        var withCumulative = sorted.Select(c =>
         {
             runningFte += c.AllocationFte;
             var cumCoverage = gap > 0 ? runningFte / gap * 100.0 : 0.0;
             return c with { CumulativeFte = runningFte, CumulativeGapCoveragePct = cumCoverage };
         }).ToList();
+
+        var stoppingIdx = withCumulative.FindIndex(c => c.CumulativeGapCoveragePct >= 100.0);
+        var candidates = withCumulative
+            .Select((c, i) => c with { InFewestChangesCombination = stoppingIdx >= 0 && i <= stoppingIdx })
+            .ToList();
+
+        if (gap > 0 && stoppingIdx >= 0)
+            candidates = ApplyLargestRemainders(candidates, stoppingIdx, gap);
+
+        FewestChangesCombinationSummary? fewestChangesCombo = null;
+        if (gap > 0 && stoppingIdx >= 0)
+        {
+            var comboRows = candidates.Where(c => c.InFewestChangesCombination).ToList();
+            fewestChangesCombo = new FewestChangesCombinationSummary(
+                comboRows.Count,
+                comboRows.Select(c => c.ResourceName).Distinct().Count(),
+                comboRows.Sum(c => c.AllocationFte),
+                comboRows.Sum(c => c.ImpliedMonthlyCost),
+                candidates[stoppingIdx].CumulativeGapCoveragePct);
+        }
 
         return new DonorCandidatesResult(
             application.Id, application.Name, division,
@@ -218,7 +238,49 @@ public class DataService(WorkforceDbContext context)
             candidates.Select(c => c.ResourceName).Distinct().Count(),
             candidates.Count,
             candidates,
-            surplusSupportFteAvailable);
+            surplusSupportFteAvailable,
+            fewestChangesCombo);
+    }
+
+    private static List<DonorCandidateRow> ApplyLargestRemainders(
+        List<DonorCandidateRow> candidates, int stoppingIdx, double gap)
+    {
+        var count   = stoppingIdx + 1;
+        var gapCovReached = candidates[stoppingIdx].CumulativeGapCoveragePct;
+        var target  = (int)Math.Round(gapCovReached);
+        target      = Math.Max(0, Math.Min(target, 100 * count));
+
+        var unrounded = Enumerable.Range(0, count)
+            .Select(i => candidates[i].AllocationFte / gap * 100.0)
+            .ToArray();
+
+        // Start each fewest-changes row at its floor, capped by the source mapping percent
+        var adj = Enumerable.Range(0, count)
+            .Select(i => Math.Min((int)Math.Floor(unrounded[i]), candidates[i].Percent))
+            .ToArray();
+
+        var deficit = target - adj.Sum();
+
+        // Distribute remaining pp to rows with largest fractional part; tie-break: largest AllocationFte
+        var order = Enumerable.Range(0, count)
+            .OrderByDescending(i => unrounded[i] - Math.Floor(unrounded[i]))
+            .ThenByDescending(i => candidates[i].AllocationFte)
+            .ToList();
+
+        var distributed = 0;
+        foreach (var idx in order)
+        {
+            if (distributed >= deficit) break;
+            if (adj[idx] < candidates[idx].Percent)
+            {
+                adj[idx]++;
+                distributed++;
+            }
+        }
+
+        return candidates
+            .Select((c, i) => i < count ? c with { DonablePercent = adj[i] } : c)
+            .ToList();
     }
 
     private static List<DonorCandidateRow> BuildSurplusSupportTier(
@@ -251,13 +313,14 @@ public class DataService(WorkforceDbContext context)
                 var donatableFte = (m.Percent / 100.0) * (surplus / coverage);
                 var impliedCost  = m.Resource.MonthlyRate * (decimal)donatableFte;
                 var gapCoverage  = gap > 0 ? donatableFte / gap * 100.0 : 0.0;
+                var donablePct   = (int)Math.Round(donatableFte * 100.0);
                 rows.Add(new DonorCandidateRow(
                     m.Resource.Name, m.Activity.Name, m.Activity.ActivityType,
                     m.Percent, impliedCost, donatableFte, m.Resource.MonthlyRate, gapCoverage,
-                    0.0, 0.0, crossDiv));
+                    0.0, 0.0, crossDiv, DonablePercent: donablePct));
             }
         }
-        return rows.OrderBy(r => r.CostPerFte).ToList();
+        return rows.OrderByDescending(r => r.AllocationFte).ToList();
     }
 
     private static List<DonorCandidateRow> BuildNonSupportTier(
@@ -282,9 +345,9 @@ public class DataService(WorkforceDbContext context)
                 return new DonorCandidateRow(
                     m.Resource.Name, m.Activity.Name, m.Activity.ActivityType,
                     m.Percent, cost, fte, costPerFte, gapCov,
-                    0.0, 0.0, crossDiv);
+                    0.0, 0.0, crossDiv, DonablePercent: m.Percent);
             })
-            .OrderBy(r => r.CostPerFte)
+            .OrderByDescending(r => r.AllocationFte)
             .ToList();
     }
 

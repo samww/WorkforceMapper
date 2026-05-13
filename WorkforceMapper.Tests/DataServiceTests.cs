@@ -519,20 +519,20 @@ public class DataServiceTests
             c.Percent == 30);
     }
 
-    // Candidates sorted cheapest-per-FTE first
+    // Candidates sorted largest-allocation-FTE first within each tier
     [Fact]
-    public async Task GetDonorCandidates_SortsByCostPerFte_Ascending()
+    public async Task GetDonorCandidates_SortsByAllocationFte_Descending()
     {
         await using var context = CreateContext();
-        // cheap resource ($5,000/month), expensive resource ($13,000/month), both 25% on a project
-        var cheap     = new Resource { ResourceId = "DC00007a", Name = "Cheap Donor",     ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 5000m,  Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
-        var expensive = new Resource { ResourceId = "DC00007b", Name = "Expensive Donor", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
-        context.Resources.AddRange(cheap, expensive);
+        // small resource at 15%, large resource at 40% — large FTE should sort first
+        var small = new Resource { ResourceId = "DC00007a", Name = "Small Donor", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 5000m,  Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
+        var large = new Resource { ResourceId = "DC00007b", Name = "Large Donor",  ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
+        context.Resources.AddRange(small, large);
         await context.SaveChangesAsync();
         // Activity 7 = PE project activity
         context.Mappings.AddRange(
-            new Mapping { ResourceId = cheap.Id,     ActivityId = 7, Month = "2026-05", Percent = 25 },
-            new Mapping { ResourceId = expensive.Id, ActivityId = 7, Month = "2026-05", Percent = 25 });
+            new Mapping { ResourceId = small.Id, ActivityId = 7, Month = "2026-05", Percent = 15 },
+            new Mapping { ResourceId = large.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -540,10 +540,10 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.True(result.Candidates.Count >= 2);
-        var ourTwo = result.Candidates.Where(c => c.ResourceName is "Cheap Donor" or "Expensive Donor").ToList();
+        var ourTwo = result.Candidates.Where(c => c.ResourceName is "Small Donor" or "Large Donor").ToList();
         Assert.Equal(2, ourTwo.Count);
-        Assert.Equal("Cheap Donor", ourTwo[0].ResourceName);
-        Assert.Equal("Expensive Donor", ourTwo[1].ResourceName);
+        Assert.Equal("Large Donor", ourTwo[0].ResourceName);
+        Assert.Equal("Small Donor", ourTwo[1].ResourceName);
     }
 
     // gap_coverage_pct reflects fraction of FTE gap each candidate closes
@@ -571,37 +571,37 @@ public class DataServiceTests
         Assert.Equal(10.0, row.CumulativeGapCoveragePct, precision: 3);
     }
 
-    // cumulative_fte and cumulative_gap_coverage_pct accumulate in sort order
+    // cumulative_fte and cumulative_gap_coverage_pct accumulate in sort order (largest FTE first)
     [Fact]
     public async Task GetDonorCandidates_CumulativeFields_AccumulateInSortOrder()
     {
         await using var context = CreateContext();
         // AuthService min = 4.0 FTE, no support → gap = 4.0 FTE
-        // cheap resource ($5,000/month) at 40% → 0.40 FTE → 10% gap coverage
-        // expensive ($13,000/month) at 60% → 0.60 FTE → 15% gap coverage
-        // Sorted cheap-first; cumulative after row 2 = 1.0 FTE = 25% gap coverage
-        var cheap     = new Resource { ResourceId = "DC00009a", Name = "Cumul Cheap",     ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 5000m,  Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
-        var expensive = new Resource { ResourceId = "DC00009b", Name = "Cumul Expensive", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
-        context.Resources.AddRange(cheap, expensive);
+        // small resource at 40% → 0.40 FTE → 10% gap coverage
+        // large resource at 60% → 0.60 FTE → 15% gap coverage
+        // Sorted largest-FTE-first: large (60%) then small (40%); cumulative after row 2 = 1.0 FTE = 25%
+        var small = new Resource { ResourceId = "DC00009a", Name = "Cumul Small", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 5000m,  Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
+        var large = new Resource { ResourceId = "DC00009b", Name = "Cumul Large", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
+        context.Resources.AddRange(small, large);
         await context.SaveChangesAsync();
         context.Mappings.AddRange(
-            new Mapping { ResourceId = cheap.Id,     ActivityId = 7, Month = "2026-05", Percent = 40 },
-            new Mapping { ResourceId = expensive.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+            new Mapping { ResourceId = small.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = large.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var ourTwo = result.Candidates.Where(c => c.ResourceName is "Cumul Cheap" or "Cumul Expensive").ToList();
+        var ourTwo = result.Candidates.Where(c => c.ResourceName is "Cumul Small" or "Cumul Large").ToList();
         Assert.Equal(2, ourTwo.Count);
-        var cheapRow     = ourTwo[0]; // sorted first (cheaper rate)
-        var expensiveRow = ourTwo[1];
+        var largeRow = ourTwo[0]; // sorted first (larger FTE)
+        var smallRow = ourTwo[1];
 
-        Assert.Equal(0.40, cheapRow.CumulativeFte, precision: 5);
-        Assert.Equal(10.0, cheapRow.CumulativeGapCoveragePct, precision: 3);
-        Assert.Equal(1.00, expensiveRow.CumulativeFte, precision: 5);
-        Assert.Equal(25.0, expensiveRow.CumulativeGapCoveragePct, precision: 3);
+        Assert.Equal(0.60, largeRow.CumulativeFte, precision: 5);
+        Assert.Equal(15.0, largeRow.CumulativeGapCoveragePct, precision: 3);
+        Assert.Equal(1.00, smallRow.CumulativeFte, precision: 5);
+        Assert.Equal(25.0, smallRow.CumulativeGapCoveragePct, precision: 3);
     }
 
     // ── Issue #29: six-tier donor candidate pipeline ─────────────────────────
@@ -1083,5 +1083,130 @@ public class DataServiceTests
         // AuthService must appear in contributing_apps for both products
         Assert.Contains(consumerPanel.contributing_apps, a => a.name == "AuthService");
         Assert.Contains(fieldwork.contributing_apps, a => a.name == "AuthService");
+    }
+
+    // ── Issue #31: largest-remainders rounding for DonablePercent ────────────
+
+    // Cycle 3 — LR tie-break: equal fractional parts → larger AllocationFte gets the extra pp
+    [Fact]
+    public async Task GetDonorCandidates_LR_TieBreakByAllocationFte()
+    {
+        // gap = 1.5 FTE; 3 donors at 80%, 50%, 30% (tier-3, PE project)
+        // donatable_pct unrounded: 53.33, 33.33, 20.00
+        // D(80%) and D(50%) both have frac 0.33; deficit = 1 (only one gets the extra pp)
+        // D(80%) has larger AllocationFte → must win the tie-break and get 54, not 53
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 103, Name = "TieBreakApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 203, Name = "TieBreakApp - Support", ActivityType = "Support", ApplicationId = 103, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var d80 = MakePeResource("LR00020", "TB Donor 80");
+        var d50 = MakePeResource("LR00021", "TB Donor 50");
+        var d30 = MakePeResource("LR00022", "TB Donor 30");
+        context.Resources.AddRange(d80, d50, d30);
+        await context.SaveChangesAsync();
+        // Activity 7 = PE project (tier-3)
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = d80.Id, ActivityId = 7, Month = "2026-05", Percent = 80 },
+            new Mapping { ResourceId = d50.Id, ActivityId = 7, Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = d30.Id, ActivityId = 7, Month = "2026-05", Percent = 30 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(103, null, "2026-05");
+
+        Assert.NotNull(result);
+        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
+        Assert.Equal(3, comboRows.Count);
+        var row80 = comboRows.Single(c => c.ResourceName == "TB Donor 80");
+        var row50 = comboRows.Single(c => c.ResourceName == "TB Donor 50");
+        var row30 = comboRows.Single(c => c.ResourceName == "TB Donor 30");
+        // deficit = round(106.67) - (53+33+20) = 107 - 106 = 1
+        // D80 and D50 tie on frac 0.33; D80 wins (larger AllocationFte) → 54
+        Assert.Equal(54, row80.DonablePercent);
+        Assert.Equal(33, row50.DonablePercent);
+        Assert.Equal(20, row30.DonablePercent);
+    }
+
+    // Cycle 4 — when gap cannot be closed, no InFewestChangesCombination rows; independent rounding unchanged
+    [Fact]
+    public async Task GetDonorCandidates_LR_NoopWhenGapCannotBeClosed()
+    {
+        // gap = 4.0 FTE (AuthService); only 1 small donor at 30% → cumulative = 7.5%, never reaches 100%
+        // No fewest-changes set → LR pass must not run; DonablePercent is unchanged from independent rounding
+        await using var context = CreateContext();
+        var donor = MakePeResource("LR00030", "Tiny Donor");
+        context.Resources.Add(donor);
+        await context.SaveChangesAsync();
+        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 7, Month = "2026-05", Percent = 30 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05"); // AuthService, gap = 4.0
+
+        Assert.NotNull(result);
+        Assert.Null(result.FewestChangesCombination);
+        Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
+        // Independent rounding: DonablePercent = m.Percent = 30 for a tier-3 donor
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Tiny Donor");
+        Assert.Equal(30, row.DonablePercent);
+    }
+
+    // Cycle 2 — no row's DonablePercent may exceed its source mapping Percent
+    [Fact]
+    public async Task GetDonorCandidates_LR_CapRespected()
+    {
+        // gap = 0.5 FTE; 1 donor at 60% → GapCovPct = 120%.
+        // Without the cap, LR would produce DonablePercent = 120; cap must hold it at 60.
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 102, Name = "CapTestApp", MinSupportFte = 0.5, RecommendedSupportFte = 0.2 });
+        context.Activities.Add(new Activity { Id = 202, Name = "CapTestApp - Support", ActivityType = "Support", ApplicationId = 102, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donor = MakePeResource("LR00010", "Cap Donor");
+        context.Resources.Add(donor);
+        await context.SaveChangesAsync();
+        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 35, Month = "2026-05", Percent = 60 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(102, null, "2026-05");
+
+        Assert.NotNull(result);
+        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
+        Assert.All(comboRows, row => Assert.True(row.DonablePercent <= row.Percent,
+            $"DonablePercent {row.DonablePercent} exceeds source Percent {row.Percent}"));
+    }
+
+    // Cycle 1 (tracer) — sum(DonablePercent for combo rows) == round(GapCoverageReachedPct)
+    [Fact]
+    public async Task GetDonorCandidates_LR_SumMatchesHeadline()
+    {
+        // gap = 1.5 FTE; 2 donors at 100% Minor Changes → cumulative = 133.3%
+        // Independent rounding gives DonablePercent = 100 + 100 = 200, not 133.
+        // Largest-remainders must produce sum == round(133.3) = 133.
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donorA = MakePeResource("LR00001", "LR Donor A");
+        var donorB = MakePeResource("LR00002", "LR Donor B");
+        context.Resources.AddRange(donorA, donorB);
+        await context.SaveChangesAsync();
+        // Activity 35 = SurveyEngine - Minor Changes (PE, tier-2)
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result);
+        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
+        Assert.Equal(2, comboRows.Count);
+        var expectedTarget = (int)Math.Round(result.FewestChangesCombination!.GapCoverageReachedPct);
+        Assert.Equal(expectedTarget, comboRows.Sum(c => c.DonablePercent));
     }
 }

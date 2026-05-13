@@ -361,6 +361,210 @@ public class AgentServiceTests
         Assert.Contains("application_name", toolResultJson);
     }
 
+    // ── Cycle 10 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildTools_DonorCandidates_DescribesСixTierPriorityOrder()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
+        var desc = tool.Function!.Description;
+        Assert.Contains("six-tier", desc, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tiers 1", desc, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tiers 4", desc, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Cycle 11 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildTools_DonorCandidates_DocumentsRequiresCrossDivisionalAlignment()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
+        var desc = tool.Function!.Description;
+        Assert.Contains("requires_cross_divisional_alignment", desc, StringComparison.Ordinal);
+    }
+
+    // ── Cycle 12 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildTools_DonorCandidates_DocumentsSurplusSupportFteAvailable()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
+        var desc = tool.Function!.Description;
+        Assert.Contains("surplus_support_fte_available", desc, StringComparison.Ordinal);
+    }
+
+    // ── Cycle 13 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildSystemPrompt_DonorParagraph_InstructsSameDivisionTiersBeforeCrossDivisional()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        Assert.Contains("same-division", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cross-divisional", systemText, StringComparison.OrdinalIgnoreCase);
+        // same-division guidance must appear before cross-divisional guidance
+        Assert.True(
+            systemText.IndexOf("same-division", StringComparison.OrdinalIgnoreCase) <
+            systemText.IndexOf("cross-divisional", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ── Cycle 14 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildSystemPrompt_DonorParagraph_InstructsCumulativeGapCoverageStopping()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        Assert.Contains("cumulative_gap_coverage_pct", systemText, StringComparison.Ordinal);
+        Assert.Contains("100", systemText, StringComparison.Ordinal);
+    }
+
+    // ── Cycle 15 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildSystemPrompt_DonorParagraph_InstructsUsingSurplusSupportFteAvailable()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        Assert.Contains("surplus_support_fte_available", systemText, StringComparison.Ordinal);
+    }
+
+    // ── Cycle 16 ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BuildSystemPrompt_DonorParagraph_InstructsFewestChangesCombinationAsCompleteSet()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        // Must reference the per-row flag and the pre-computed summary
+        Assert.Contains("in_fewest_changes_combination", systemText, StringComparison.Ordinal);
+        Assert.Contains("fewest_changes_combination", systemText, StringComparison.Ordinal);
+        // Must forbid presenting the stopping row in isolation
+        Assert.Contains("final row", systemText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BuildSystemPrompt_DonorParagraph_ExplainsTierSystemToUser()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        Assert.Contains("tier 1", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tier 2", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tier 3", systemText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BuildTools_DonorCandidates_DocumentsFewestChangesCombinationAndInFlag()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
+        var desc = tool.Function!.Description;
+        Assert.Contains("fewest_changes_combination", desc, StringComparison.Ordinal);
+        Assert.Contains("in_fewest_changes_combination", desc, StringComparison.Ordinal);
+    }
+
     // ── Cycle 4 ─────────────────────────────────────────────────────────────
 
     [Fact]
