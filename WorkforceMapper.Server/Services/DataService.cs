@@ -141,49 +141,67 @@ public class DataService(WorkforceDbContext context)
     public async Task<DonorCandidatesResult?> GetDonorCandidatesAsync(
         int? applicationId, string? applicationName, string month)
     {
-        var query = context.Applications.Include(a => a.Activities).AsQueryable();
+        var appQuery = context.Applications.Include(a => a.Activities).AsQueryable();
         var application = applicationId.HasValue
-            ? await query.FirstOrDefaultAsync(a => a.Id == applicationId.Value)
-            : await query.FirstOrDefaultAsync(a =>
+            ? await appQuery.FirstOrDefaultAsync(a => a.Id == applicationId.Value)
+            : await appQuery.FirstOrDefaultAsync(a =>
                 a.Name.ToLower() == (applicationName ?? "").ToLower());
         if (application is null) return null;
 
         var division = application.Activities.FirstOrDefault()?.Division ?? "";
 
-        var supportMappings = await context.Mappings
+        // Current support coverage on the target app
+        var targetSupportMappings = await context.Mappings
             .Where(m => m.Month == month && m.Activity.ActivityType == "Support"
                         && m.Activity.ApplicationId == application.Id)
             .Include(m => m.Resource)
             .ToListAsync();
-        var currentCoverage = supportMappings
+        var currentCoverage = targetSupportMappings
             .Where(m => GetMonthFlag(m.Resource, month) == 1)
             .Sum(m => (double)m.Percent / 100.0);
-
-        var resources = await context.Resources
-            .Include(r => r.Mappings)
-            .ThenInclude(m => m.Activity)
-            .ToListAsync();
-
         var gap = Math.Max(0.0, application.MinSupportFte - currentCoverage);
 
-        var sorted = resources
-            .Where(r => GetMonthFlag(r, month) == 1 && r.Division == division)
-            .SelectMany(r => r.Mappings.Where(m => m.Month == month
-                && (m.Activity.ActivityType == "Project" || m.Activity.ActivityType == "Minor Changes")),
-                (r, m) =>
-                {
-                    var allocationFte = m.Percent / 100.0;
-                    var impliedCost = r.MonthlyRate * m.Percent / 100m;
-                    // cost_per_fte == the resource's monthly rate; sort ascending so cheapest FTE comes first
-                    var costPerFte = m.Percent > 0 ? r.MonthlyRate : 0m;
-                    var gapCoveragePct = gap > 0 ? allocationFte / gap * 100.0 : 0.0;
-                    return new DonorCandidateRow(
-                        r.Name, m.Activity.Name, m.Activity.ActivityType,
-                        m.Percent, impliedCost, allocationFte, costPerFte, gapCoveragePct,
-                        0.0, 0.0);
-                })
-            .OrderBy(c => c.CostPerFte)
-            .ToList();
+        // Resources already on the target's support are excluded from all tiers
+        var excludedResourceIds = targetSupportMappings
+            .Select(m => m.ResourceId)
+            .ToHashSet();
+
+        // All active mappings for the month (with resource + activity loaded)
+        var allMappings = await context.Mappings
+            .Where(m => m.Month == month)
+            .Include(m => m.Resource)
+            .Include(m => m.Activity)
+            .ToListAsync();
+        var activeMappings = allMappings.Where(m => GetMonthFlag(m.Resource, month) == 1).ToList();
+
+        // Surplus support FTE per application
+        var allApplications = await context.Applications.Include(a => a.Activities).ToListAsync();
+        string AppDiv(Application a) => a.Activities.FirstOrDefault()?.Division ?? "";
+
+        var appSurplus  = new Dictionary<int, double>();
+        var appCoverage = new Dictionary<int, double>();
+        foreach (var app in allApplications)
+        {
+            var cov = activeMappings
+                .Where(m => m.Activity.ActivityType == "Support" && m.Activity.ApplicationId == app.Id)
+                .Sum(m => m.Percent / 100.0);
+            appCoverage[app.Id] = cov;
+            appSurplus[app.Id]  = Math.Max(0, cov - app.RecommendedSupportFte);
+        }
+
+        var surplusSupportFteAvailable = allApplications
+            .Where(a => AppDiv(a) == division)
+            .Sum(a => appSurplus.GetValueOrDefault(a.Id));
+
+        // Build tiers 1–6
+        var tier1 = BuildSurplusSupportTier(activeMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: false);
+        var tier2 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: false);
+        var tier3 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Project",       gap, crossDiv: false);
+        var tier4 = BuildSurplusSupportTier(activeMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: true);
+        var tier5 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: true);
+        var tier6 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Project",       gap, crossDiv: true);
+
+        var sorted = tier1.Concat(tier2).Concat(tier3).Concat(tier4).Concat(tier5).Concat(tier6).ToList();
 
         var runningFte = 0.0;
         var candidates = sorted.Select(c =>
@@ -199,7 +217,75 @@ public class DataService(WorkforceDbContext context)
             gap,
             candidates.Select(c => c.ResourceName).Distinct().Count(),
             candidates.Count,
-            candidates);
+            candidates,
+            surplusSupportFteAvailable);
+    }
+
+    private static List<DonorCandidateRow> BuildSurplusSupportTier(
+        List<Mapping> activeMappings,
+        List<Application> allApplications,
+        Dictionary<int, double> appSurplus,
+        Dictionary<int, double> appCoverage,
+        HashSet<int> excludedResourceIds,
+        string targetDivision,
+        double gap,
+        bool crossDiv)
+    {
+        var rows = new List<DonorCandidateRow>();
+        foreach (var app in allApplications)
+        {
+            var surplus  = appSurplus.GetValueOrDefault(app.Id);
+            var coverage = appCoverage.GetValueOrDefault(app.Id);
+            if (surplus <= 0 || coverage <= 0) continue;
+
+            var supportMappings = activeMappings
+                .Where(m => m.Activity.ActivityType == "Support"
+                            && m.Activity.ApplicationId == app.Id
+                            && !excludedResourceIds.Contains(m.ResourceId));
+
+            foreach (var m in supportMappings)
+            {
+                var isSameDiv = m.Resource.Division == targetDivision;
+                if (crossDiv == isSameDiv) continue; // crossDiv=false wants same-div; crossDiv=true wants cross-div
+
+                var donatableFte = (m.Percent / 100.0) * (surplus / coverage);
+                var impliedCost  = m.Resource.MonthlyRate * (decimal)donatableFte;
+                var gapCoverage  = gap > 0 ? donatableFte / gap * 100.0 : 0.0;
+                rows.Add(new DonorCandidateRow(
+                    m.Resource.Name, m.Activity.Name, m.Activity.ActivityType,
+                    m.Percent, impliedCost, donatableFte, m.Resource.MonthlyRate, gapCoverage,
+                    0.0, 0.0, crossDiv));
+            }
+        }
+        return rows.OrderBy(r => r.CostPerFte).ToList();
+    }
+
+    private static List<DonorCandidateRow> BuildNonSupportTier(
+        List<Mapping> activeMappings,
+        HashSet<int> excludedResourceIds,
+        string targetDivision,
+        string activityType,
+        double gap,
+        bool crossDiv)
+    {
+        return activeMappings
+            .Where(m => m.Activity.ActivityType == activityType
+                        && !excludedResourceIds.Contains(m.ResourceId)
+                        && (crossDiv ? m.Resource.Division != targetDivision
+                                     : m.Resource.Division == targetDivision))
+            .Select(m =>
+            {
+                var fte        = m.Percent / 100.0;
+                var cost       = m.Resource.MonthlyRate * m.Percent / 100m;
+                var costPerFte = m.Resource.MonthlyRate;
+                var gapCov     = gap > 0 ? fte / gap * 100.0 : 0.0;
+                return new DonorCandidateRow(
+                    m.Resource.Name, m.Activity.Name, m.Activity.ActivityType,
+                    m.Percent, cost, fte, costPerFte, gapCov,
+                    0.0, 0.0, crossDiv);
+            })
+            .OrderBy(r => r.CostPerFte)
+            .ToList();
     }
 
     public async Task<UnallocatedResourcesResult> GetUnallocatedResourcesAsync(

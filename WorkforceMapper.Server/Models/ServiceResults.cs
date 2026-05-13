@@ -84,7 +84,8 @@ public record DonorCandidateRow(
     decimal CostPerFte,
     double GapCoveragePct,
     double CumulativeFte,
-    double CumulativeGapCoveragePct
+    double CumulativeGapCoveragePct,
+    bool RequiresCrossDivisionalAlignment
 );
 
 public record DonorCandidatesResult(
@@ -97,7 +98,8 @@ public record DonorCandidatesResult(
     double GapFte,
     int UniqueResourceCount,
     int TotalAllocationCount,
-    List<DonorCandidateRow> Candidates
+    List<DonorCandidateRow> Candidates,
+    double SurplusSupportFteAvailable
 );
 
 public record ProductRiskSummary(

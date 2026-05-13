@@ -426,9 +426,9 @@ public class DataServiceTests
         Assert.Empty(result.Candidates);
     }
 
-    // Cycle 4 — Resources from other divisions are excluded
+    // Cycle 4 (updated for #29) — cross-div resources surface as tier 6 with alignment flag
     [Fact]
-    public async Task GetDonorCandidates_ExcludesResources_FromOtherDivisions()
+    public async Task GetDonorCandidates_CrossDivisionalResources_AppearAsTier6_WithAlignmentFlag()
     {
         await using var context = CreateContext();
         var analyticsResource = new Resource
@@ -446,11 +446,11 @@ public class DataServiceTests
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        // AuthService is Platform Engineering — Analytics resource should not appear
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        Assert.Empty(result.Candidates);
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Dave Analytics");
+        Assert.True(row.RequiresCrossDivisionalAlignment);
     }
 
     // Cycle 3 — Support allocations are excluded (not deferrable)
@@ -602,6 +602,270 @@ public class DataServiceTests
         Assert.Equal(10.0, cheapRow.CumulativeGapCoveragePct, precision: 3);
         Assert.Equal(1.00, expensiveRow.CumulativeFte, precision: 5);
         Assert.Equal(25.0, expensiveRow.CumulativeGapCoveragePct, precision: 3);
+    }
+
+    // ── Issue #29: six-tier donor candidate pipeline ─────────────────────────
+
+    // Case 4 (tracer bullet) — tier 4–6 rows have RequiresCrossDivisionalAlignment = true; tiers 1–3 have false
+    [Fact]
+    public async Task GetDonorCandidates_Tier456_RequiresCrossDivisionalAlignment_True()
+    {
+        await using var context = CreateContext();
+        var peResource       = MakePeResource("T4A00001", "PE Tier3 Donor");
+        var analyticsResource = new Resource
+        {
+            ResourceId = "T4A00002", Name = "Analytics Tier6 Donor", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Analytics", Country = "UK", MonthlyRate = 10000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        };
+        context.Resources.AddRange(peResource, analyticsResource);
+        await context.SaveChangesAsync();
+        // Activity 7 = PE project (tier 3); Activity 19 = Analytics project (tier 6)
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = peResource.Id,       ActivityId = 7,  Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 50 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var peRow       = Assert.Single(result.Candidates, c => c.ResourceName == "PE Tier3 Donor");
+        var analyticsRow = Assert.Single(result.Candidates, c => c.ResourceName == "Analytics Tier6 Donor");
+        Assert.False(peRow.RequiresCrossDivisionalAlignment);
+        Assert.True(analyticsRow.RequiresCrossDivisionalAlignment);
+    }
+
+    // Case 6 — Resource already mapped to the target app's Support activity does not appear in any tier
+    [Fact]
+    public async Task GetDonorCandidates_ResourceOnTargetSupport_ExcludedFromAllTiers()
+    {
+        await using var context = CreateContext();
+        var supporter      = MakePeResource("T6A00001", "Target Supporter");
+        var projectDonor   = MakePeResource("T6A00002", "PE Project Donor");
+        context.Resources.AddRange(supporter, projectDonor);
+        await context.SaveChangesAsync();
+        // Activity 5 = AuthService - Support (the target); Activity 7 = PE project
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 5, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = projectDonor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.DoesNotContain(result.Candidates, c => c.ResourceName == "Target Supporter");
+        Assert.Contains(result.Candidates, c => c.ResourceName == "PE Project Donor");
+    }
+
+    // Case 5a — Application at exactly recommended_support_fte yields no tier-1 donor
+    [Fact]
+    public async Task GetDonorCandidates_Tier1_ExactlyAtRecommendedFte_YieldsNoDonor()
+    {
+        // Custom PE app: recommended = 1.0; 1 resource at 100% → coverage = recommended → surplus = 0
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 99, Name = "ExactApp", MinSupportFte = 0.5, RecommendedSupportFte = 1.0 });
+        context.Activities.Add(new Activity { Id = 199, Name = "ExactApp - Support", ActivityType = "Support", ApplicationId = 99, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var resource = MakePeResource("T5A00001", "Exactly Recommended");
+        context.Resources.Add(resource);
+        await context.SaveChangesAsync();
+        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 199, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.DoesNotContain(result.Candidates, c => c.ResourceName == "Exactly Recommended");
+    }
+
+    // Case 5b — Application one percent-point above recommended yields a tier-1 donor with surplus FTE only
+    [Fact]
+    public async Task GetDonorCandidates_Tier1_OnePercentAboveRecommended_YieldsSurplusFteOnly()
+    {
+        // Custom PE app: recommended = 0.50; resource at 51% → coverage = 0.51 → surplus = 0.01
+        // donatable FTE = 0.51 * (0.01 / 0.51) = 0.01
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 100, Name = "SlightSurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 200, Name = "SlightSurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var resource = MakePeResource("T5B00001", "OneAbove Resource");
+        context.Resources.Add(resource);
+        await context.SaveChangesAsync();
+        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "OneAbove Resource");
+        Assert.Equal(0.01, row.AllocationFte, precision: 5);
+        Assert.False(row.RequiresCrossDivisionalAlignment);
+    }
+
+    // Case 1 — Tier 1 candidate appears before tier 2 candidate
+    [Fact]
+    public async Task GetDonorCandidates_Tier1_AppearsBefore_Tier2()
+    {
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var tier1Resource = MakePeResource("T1B00001", "Tier1 Donor");
+        var tier2Resource = MakePeResource("T1B00002", "Tier2 Donor");
+        context.Resources.AddRange(tier1Resource, tier2Resource);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 }, // surplus support
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 }); // Minor Changes
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var tier1Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier1 Donor");
+        var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 Donor");
+        Assert.True(tier1Idx >= 0 && tier2Idx >= 0, "Both candidates must appear");
+        Assert.True(tier1Idx < tier2Idx, "Tier-1 must appear before tier-2");
+    }
+
+    // Case 2 — Tier 2 candidate appears before tier 3 candidate
+    [Fact]
+    public async Task GetDonorCandidates_Tier2_AppearsBefore_Tier3()
+    {
+        await using var context = CreateContext();
+        var tier2Resource = MakePeResource("T2B00001", "Tier2 MinorChg");
+        var tier3Resource = MakePeResource("T2B00002", "Tier3 Project");
+        context.Resources.AddRange(tier2Resource, tier3Resource);
+        await context.SaveChangesAsync();
+        // Activity 35 = SurveyEngine - Minor Changes (PE); Activity 7 = PE project
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35, Month = "2026-05", Percent = 25 },
+            new Mapping { ResourceId = tier3Resource.Id, ActivityId = 7,  Month = "2026-05", Percent = 30 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 MinorChg");
+        var tier3Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier3 Project");
+        Assert.True(tier2Idx >= 0 && tier3Idx >= 0, "Both candidates must appear");
+        Assert.True(tier2Idx < tier3Idx, "Tier-2 must appear before tier-3");
+    }
+
+    // Case 3 — Tiers 1–3 all appear before tiers 4–6
+    [Fact]
+    public async Task GetDonorCandidates_Tiers123_AppearBefore_Tiers456()
+    {
+        // Same-div tier-3 (PE Project) must appear before cross-div tier-6 (Analytics Project)
+        await using var context = CreateContext();
+        var peResource = MakePeResource("T3B00001", "PE Project Tier3");
+        var analyticsResource = new Resource
+        {
+            ResourceId = "T3B00002", Name = "Analytics Project Tier6", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Analytics", Country = "UK", MonthlyRate = 10000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        };
+        context.Resources.AddRange(peResource, analyticsResource);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = peResource.Id,        ActivityId = 7,  Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 40 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var sameDivIdx  = result.Candidates.FindIndex(c => c.ResourceName == "PE Project Tier3");
+        var crossDivIdx = result.Candidates.FindIndex(c => c.ResourceName == "Analytics Project Tier6");
+        Assert.True(sameDivIdx >= 0 && crossDivIdx >= 0);
+        Assert.True(sameDivIdx < crossDivIdx, "Same-div (tier 3) must appear before cross-div (tier 6)");
+    }
+
+    // Case 7 — CumulativeFte accumulates correctly across a tier boundary
+    [Fact]
+    public async Task GetDonorCandidates_CumulativeFte_AccumulatesAcrossTierBoundary()
+    {
+        // Tier-1 surplus support: donatable = 0.01 FTE
+        // Tier-2 Minor Changes: 0.25 FTE
+        // CumulativeFte at tier-2 row = 0.01 + 0.25 = 0.26
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var tier1Resource = MakePeResource("T7A00001", "Tier1 Cumul");
+        var tier2Resource = MakePeResource("T7A00002", "Tier2 Cumul");
+        context.Resources.AddRange(tier1Resource, tier2Resource);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 }, // donatable = 0.01
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 }); // 0.25 FTE
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var tier1Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier1 Cumul");
+        var tier2Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier2 Cumul");
+        var tier1Idx = result.Candidates.IndexOf(tier1Row);
+        var tier2Idx = result.Candidates.IndexOf(tier2Row);
+        Assert.True(tier1Idx < tier2Idx, "Tier-1 must precede tier-2 in the list");
+        Assert.Equal(0.01, tier1Row.AllocationFte, precision: 5);
+        Assert.Equal(0.01 + 0.25, tier2Row.CumulativeFte, precision: 5);
+    }
+
+    // Case 8 — SurplusSupportFteAvailable equals the sum of surplus FTE across same-division applications
+    [Fact]
+    public async Task GetDonorCandidates_SurplusSupportFteAvailable_SumOfSameDivisionSurplus()
+    {
+        // ObservabilityStack (app 5, PE, recommended=2.0): 3 resources at 100% → coverage=3.0 → surplus=1.0
+        // APIGateway (app 2, PE, recommended=2.5): 3 resources at 100% → coverage=3.0 → surplus=0.5
+        // All other PE apps: no seeded mappings → coverage=0 → surplus=0
+        // SurplusSupportFteAvailable = 1.0 + 0.5 = 1.5
+        await using var context = CreateContext();
+
+        var obsResources = Enumerable.Range(1, 3).Select(i => new Resource
+        {
+            ResourceId = $"T8A{i:00000}", Name = $"ObsStack Res {i}", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 10000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        }).ToList();
+        var apiResources = Enumerable.Range(1, 3).Select(i => new Resource
+        {
+            ResourceId = $"T8B{i:00000}", Name = $"APIGateway Res {i}", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 10000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        }).ToList();
+        context.Resources.AddRange(obsResources);
+        context.Resources.AddRange(apiResources);
+        await context.SaveChangesAsync();
+        // Activity 6 = ObservabilityStack - Support; Activity 3 = APIGateway - Support
+        foreach (var r in obsResources)
+            context.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 6, Month = "2026-05", Percent = 100 });
+        foreach (var r in apiResources)
+            context.Mappings.Add(new Mapping { ResourceId = r.Id, ActivityId = 3, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.Equal(1.5, result.SurplusSupportFteAvailable, precision: 5);
     }
 
     // ── get_unallocated_resources ─────────────────────────────────────────────
