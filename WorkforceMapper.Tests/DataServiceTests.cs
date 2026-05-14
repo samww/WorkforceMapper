@@ -1209,4 +1209,161 @@ public class DataServiceTests
         var expectedTarget = (int)Math.Round(result.FewestChangesCombination!.GapCoverageReachedPct);
         Assert.Equal(expectedTarget, comboRows.Sum(c => c.DonablePercent));
     }
+
+    // ── Issue #32: trim get_donor_candidates response ────────────────────────
+
+    // Cycle 2 — TotalAvailableCandidatesCount reflects pre-trim count
+    [Fact]
+    public async Task GetDonorCandidates_TotalAvailableCandidatesCount_ReflectsPreTrimCount()
+    {
+        // App with gap 1.0 FTE; 2 donors close the gap (combo = 2 rows); 6 extra donors fill the rest.
+        // Total = 8 candidates. Trimmed = 2 (combo) + 5 (buffer) = 7.
+        // TotalAvailableCandidatesCount must == 8 (the pre-trim count).
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 110, Name = "TrimApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
+        await context.SaveChangesAsync();
+
+        // 2 combo donors (60% each → cumulative hits 120% of 1.0 FTE gap)
+        var combo1 = MakePeResource("TR32B001", "Combo1");
+        var combo2 = MakePeResource("TR32B002", "Combo2");
+        // 6 buffer/extra donors at 10% each
+        var extras = Enumerable.Range(3, 6).Select(i => MakePeResource($"TR32B{i:000}", $"Extra{i}")).ToList();
+        context.Resources.Add(combo1);
+        context.Resources.Add(combo2);
+        context.Resources.AddRange(extras);
+        await context.SaveChangesAsync();
+
+        // Activity 7 = PE project (tier-3)
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        foreach (var e in extras)
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(110, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.FewestChangesCombination);
+        Assert.Equal(8, result.TotalAvailableCandidatesCount);
+        Assert.True(result.Candidates.Count < result.TotalAvailableCandidatesCount,
+            "Trimmed list should be shorter than total available");
+    }
+
+    // Cycle 3 — trimmed list is exactly combo_count + DonorCandidateBufferRows (5)
+    [Fact]
+    public async Task GetDonorCandidates_Trimming_CandidatesCount_EqualsComboCountPlusBuffer()
+    {
+        // Same seed as cycle 2: 2 combo rows + 6 extras = 8 total.
+        // After trim: 2 + 5 = 7.
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 111, Name = "TrimCountApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
+        await context.SaveChangesAsync();
+
+        var combo1 = MakePeResource("TR32C001", "Count Combo1");
+        var combo2 = MakePeResource("TR32C002", "Count Combo2");
+        var extras = Enumerable.Range(3, 6).Select(i => MakePeResource($"TR32C{i:000}", $"Count Extra{i}")).ToList();
+        context.Resources.Add(combo1);
+        context.Resources.Add(combo2);
+        context.Resources.AddRange(extras);
+        await context.SaveChangesAsync();
+
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        foreach (var e in extras)
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(111, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.FewestChangesCombination);
+        var comboCount = result.FewestChangesCombination.RowCount;
+        Assert.Equal(comboCount + 5, result.Candidates.Count);
+    }
+
+    // Cycle 4 — every InFewestChangesCombination row survives trimming
+    [Fact]
+    public async Task GetDonorCandidates_Trimming_AllFewestChangesRowsPreserved()
+    {
+        // 2 combo rows close the gap; 6 extras are trimmed at the buffer boundary.
+        // All rows with InFewestChangesCombination == true must still appear.
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 112, Name = "TrimPreserveApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
+        await context.SaveChangesAsync();
+
+        var combo1 = MakePeResource("TR32D001", "Preserve Combo1");
+        var combo2 = MakePeResource("TR32D002", "Preserve Combo2");
+        var extras = Enumerable.Range(3, 6).Select(i => MakePeResource($"TR32D{i:000}", $"Preserve Extra{i}")).ToList();
+        context.Resources.Add(combo1);
+        context.Resources.Add(combo2);
+        context.Resources.AddRange(extras);
+        await context.SaveChangesAsync();
+
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        foreach (var e in extras)
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(112, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.FewestChangesCombination);
+        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
+        Assert.Equal(result.FewestChangesCombination.RowCount, comboRows.Count);
+        Assert.Contains(result.Candidates, c => c.ResourceName == "Preserve Combo1" && c.InFewestChangesCombination);
+        Assert.Contains(result.Candidates, c => c.ResourceName == "Preserve Combo2" && c.InFewestChangesCombination);
+    }
+
+    // Cycle 5 — no fewest-changes path: returns top DonorCandidateBufferRows * 2 (10) rows
+    [Fact]
+    public async Task GetDonorCandidates_NoFewestChanges_ReturnTopBufferTimesTwo()
+    {
+        // AuthService gap = 4.0 FTE; 12 donors at 10% each → cumulative never reaches 100%.
+        // No fewest-changes combo → limit = DonorCandidateBufferRows * 2 = 10.
+        // candidates.Count must be 10, TotalAvailableCandidatesCount must be 12.
+        // No row has InFewestChangesCombination == true.
+        await using var context = CreateContext();
+        var donors = Enumerable.Range(1, 12).Select(i => MakePeResource($"TR32E{i:000}", $"NFC Donor {i}")).ToList();
+        context.Resources.AddRange(donors);
+        await context.SaveChangesAsync();
+        foreach (var d in donors)
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05"); // AuthService
+
+        Assert.NotNull(result);
+        Assert.Null(result.FewestChangesCombination);
+        Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
+        Assert.Equal(10, result.Candidates.Count);
+        Assert.Equal(12, result.TotalAvailableCandidatesCount);
+    }
+
+    // Cycle 1 (tracer) — small pool below buffer threshold: no trimming occurs
+    [Fact]
+    public async Task GetDonorCandidates_SmallPool_NoTrimming_CountMatchesTotal()
+    {
+        // AuthService gap = 4.0 FTE; 3 donors at 10% each → cumulative = 7.5%, never closes.
+        // Total = 3 < DonorCandidateBufferRows * 2 (10) → no trimming.
+        // candidates.Count must equal TotalAvailableCandidatesCount.
+        await using var context = CreateContext();
+        var donors = Enumerable.Range(1, 3).Select(i => MakePeResource($"TR32A{i:000}", $"Small Donor {i}")).ToList();
+        context.Resources.AddRange(donors);
+        await context.SaveChangesAsync();
+        foreach (var d in donors)
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.Equal(result.TotalAvailableCandidatesCount, result.Candidates.Count);
+        Assert.Equal(3, result.TotalAvailableCandidatesCount);
+    }
 }

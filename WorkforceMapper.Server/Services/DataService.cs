@@ -6,6 +6,7 @@ namespace WorkforceMapper.Server.Services;
 
 public class DataService(WorkforceDbContext context)
 {
+    private const int DonorCandidateBufferRows = 5;
     public async Task<(int ResourceCount, int MappingCount)> GetHealthAsync()
     {
         var resourceCount = await context.Resources.CountAsync();
@@ -231,15 +232,23 @@ public class DataService(WorkforceDbContext context)
                 candidates[stoppingIdx].CumulativeGapCoveragePct);
         }
 
+        var totalAvailableCandidatesCount = candidates.Count;
+
+        var limit = stoppingIdx >= 0
+            ? stoppingIdx + 1 + DonorCandidateBufferRows
+            : DonorCandidateBufferRows * 2;
+        var trimmed = candidates.Count > limit ? candidates.Take(limit).ToList() : candidates;
+
         return new DonorCandidatesResult(
             application.Id, application.Name, division,
             currentCoverage, application.MinSupportFte, application.RecommendedSupportFte,
             gap,
-            candidates.Select(c => c.ResourceName).Distinct().Count(),
-            candidates.Count,
-            candidates,
+            trimmed.Select(c => c.ResourceName).Distinct().Count(),
+            trimmed.Count,
+            trimmed,
             surplusSupportFteAvailable,
-            fewestChangesCombo);
+            fewestChangesCombo,
+            totalAvailableCandidatesCount);
     }
 
     private static List<DonorCandidateRow> ApplyLargestRemainders(

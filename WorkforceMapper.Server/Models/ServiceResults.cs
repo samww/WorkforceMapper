@@ -110,7 +110,8 @@ public record DonorCandidatesResult(
     int TotalAllocationCount,
     List<DonorCandidateRow> Candidates,
     double SurplusSupportFteAvailable,
-    FewestChangesCombinationSummary? FewestChangesCombination = null
+    FewestChangesCombinationSummary? FewestChangesCombination = null,
+    int TotalAvailableCandidatesCount = 0
 );
 
 public record ProductRiskSummary(

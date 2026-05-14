@@ -308,6 +308,10 @@ public class AgentService(IClaudeClient claude, DataService data)
             "a cross-divisional conversation is needed before acting. " +
             "Also returns pre-computed unique_resource_count and total_allocation_count — use these " +
             "for counts, do not count the candidates list yourself. " +
+            "total_available_candidates_count is the full pre-trim pool size; use it when stating " +
+            "how many candidates were considered (e.g. \"11 changes chosen from 87 candidates considered\"). " +
+            "The candidates list is trimmed to the fewest-changes rows plus a small buffer — " +
+            "do not count the list itself to determine pool size. " +
             "Prefer application_name when you know the name but not the numeric ID.",
             new JsonObject
             {

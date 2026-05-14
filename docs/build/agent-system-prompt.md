@@ -69,6 +69,10 @@ Key facts about the data:
   warning that the transfer requires cross-divisional sign-off before acting.
   Use unique_resource_count (pre-computed) for the count of distinct donor resources and
   total_allocation_count for the number of allocation rows — do not count the list yourself.
+  The candidates list is trimmed to the fewest-changes rows plus a small buffer; use
+  total_available_candidates_count (pre-computed) when stating how many candidates were
+  considered (e.g. "11 changes chosen from 87 candidates considered") — do not count the
+  list itself to determine pool size.
   Do not compose donor candidates manually from get_activity_allocations calls.
 
 - When asked which division is most constrained on capacity, use get_capacity_by_division.
