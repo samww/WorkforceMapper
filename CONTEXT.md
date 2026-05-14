@@ -40,11 +40,9 @@ resources ──< mappings >── activities ──> applications ──< produ
 - **products** — 7; $28.9m total ARR; all 7 transitively depend on AuthService
 - **applications** — 18 (`min_support_fte` and `recommended_support_fte` thresholds per application); **projects** — 12; join tables: `product_applications` (26), `project_products` (26), `application_dependencies` (directed dependency edges used for risk propagation, not cost attribution)
 
-Default month: **`2026-05`**. This is the initial selected value only — the UI exposes a month dropdown so the user can switch months. Do not hardcode `2026-05` beyond the `DEFAULT_MONTH` constant that sets the initial state.
+Default month: **`2026-05`** (`DEFAULT_MONTH` constant — UI has a month dropdown; do not hardcode elsewhere). Month and division filter state lives in `App.tsx`, passed as `{ month, division }` props to all three tab views (`MappingView`, `ApplicationsView`, `ProductsView`) — do not re-introduce local state. All tab views accept `onOpenChat?: () => void`; when provided, render an "Ask AI" button in the header (`App.tsx` passes `chatOpen ? undefined : () => setChatOpen(true)`). Do not render Ask AI inside detail screens.
 
-Month and division filter state lives in `App.tsx` and is passed as props into all three tab views (`MappingView`, `ApplicationsView`, `ProductsView`). Each view accepts `{ month, division }` as props — do not re-introduce local state for these filters.
-
-All three tab views (`MappingView`, `ApplicationsView`, `ProductsView`) also accept an optional `onOpenChat?: () => void` prop. When provided, they render an "Ask AI" button in their header. `App.tsx` passes `chatOpen ? undefined : () => setChatOpen(true)` so the button disappears once the chat panel is already open. Do not render an Ask AI button inside detail screens (`ApplicationDetail`, `ProductDetail`).
+Frontend component details (props, navigation state, MermaidDiagram, DependencyGraph): `docs/build/frontend-components.md`.
 
 ---
 
@@ -66,10 +64,10 @@ All three tab views (`MappingView`, `ApplicationsView`, `ProductsView`) also acc
 | GET | `/api/health` | `{ status, resource_count, mapping_count }` |
 | GET | `/api/resources?month=` | Array with nested `mappings`; `active` reflects month flag |
 | GET | `/api/activities` | Full list |
-| GET | `/api/applications?month=` | Array with risk classification and coverage per application; each entry includes `dependent_products` (products whose transitive closure includes this app) and `dependents` (apps that transitively depend on this app) |
-| GET | `/api/products?month=` | Array with aggregated product risk and dependent ARR; each `contributing_apps` entry includes `division: string`; `direct_apps` included for diagram rendering |
+| GET | `/api/applications?month=` | Array with risk classification and coverage; each entry includes `dependent_products` and `dependents` |
+| GET | `/api/products?month=` | Array with aggregated product risk and dependent ARR; `contributing_apps` includes `division`; `direct_apps` for diagram rendering |
 | PUT | `/api/mappings` | Body: `{ resource_id, activity_id, month, percent }`; 400 + `would_exceed_cap` or `resource_inactive_in_month` on violation |
-| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404; 400 + `resource_inactive_in_month` if month is inactive for the resource |
+| DELETE | `/api/mappings?resource_id=&activity_id=&month=` | 204 / 404; 400 + `resource_inactive_in_month` if month is inactive |
 | POST | `/api/chat` | Body: `{ query, month }` → SSE stream of text tokens |
 
 ---
@@ -78,24 +76,3 @@ All three tab views (`MappingView`, `ApplicationsView`, `ProductsView`) also acc
 
 - **Backend:** ASP.NET Core (.NET 10), C#, EF Core + SQLite, `Anthropic.SDK` (`claude-haiku-4-5-20251001`)
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Vitest + RTL, `mermaid` v11 (dependency diagrams)
-
-## Frontend component guide (detail screens)
-
-`ApplicationDetail` — shows support coverage bar, clickable dependent-products table, and back navigation. Props: `app`, `onBack`, `onNavigateToProduct(id)`, `backLabel?` (defaults `"Back to Applications"`; set to product name when navigating back from a product).
-
-`ProductDetail` — shows Mermaid dependency diagram (product circle → app rectangles, clickable nodes) and a Contributing Applications table with clickable app names. Props: `product`, `onBack`, `backLabel?` (defaults `"Back to Products"`), `onNavigateToApp?(id)`.
-
-`MermaidDiagram` — thin wrapper around `mermaid.render`. Uses a unique render ID per invocation (StrictMode-safe). After render, attaches click listeners to `g.node` elements; extracts node IDs via `/flowchart-(.+)-\d+$/` (no leading `^` — Mermaid v11 prefixes the render ID onto element IDs). Props: `definition`, `onNodeClick?(nodeId: string)`.
-
-`diagramBuilders.ts` — pure functions for building Mermaid graph definitions. `buildProductMermaid(directApps, productName)` renders the product as a circle at the top connected to app rectangles coloured by risk.
-
-## Navigation between detail screens
-
-App.tsx holds `productBackApp` (ApplicationRisk | null) and `appBackProduct` (ProductRisk | null). When navigating ApplicationDetail → ProductDetail, `productBackApp` is saved; back restores the app. When navigating ProductDetail → ApplicationDetail, `appBackProduct` is saved; back restores the product. Both states are cleared on tab switch. Back button labels update to reflect the destination (`"Back to AuthService"`, `"Back to DataLicensing"`, etc.).
-
-## DependencyGraph
-
-`TransitiveDependentsOf(appId)` — BFS over `_reverseEdges` (built in the constructor from the same edge list with source/target swapped). Returns all apps that directly or transitively depend on `appId`, excluding `appId` itself.
-
-`dependent_products` on `ApplicationRiskDto` uses the transitive closure of every product's dependency graph — a product appears in an application's list if that application is anywhere in the product's transitive dependency set, not only if it is a direct `product_application` entry.
-
