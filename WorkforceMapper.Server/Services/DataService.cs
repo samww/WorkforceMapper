@@ -224,12 +224,16 @@ public class DataService(WorkforceDbContext context)
         if (gap > 0 && stoppingIdx >= 0)
         {
             var comboRows = candidates.Where(c => c.InFewestChangesCombination).ToList();
+            var mappingChanges = comboRows
+                .Select(r => ComposeMappingChange(r, application.Name, division))
+                .ToList();
             fewestChangesCombo = new FewestChangesCombinationSummary(
                 comboRows.Count,
                 comboRows.Select(c => c.ResourceName).Distinct().Count(),
                 comboRows.Sum(c => c.AllocationFte),
                 comboRows.Sum(c => c.ImpliedMonthlyCost),
-                candidates[stoppingIdx].CumulativeGapCoveragePct);
+                candidates[stoppingIdx].CumulativeGapCoveragePct,
+                mappingChanges);
         }
 
         var totalAvailableCandidatesCount = candidates.Count;
@@ -263,9 +267,14 @@ public class DataService(WorkforceDbContext context)
             .Select(i => candidates[i].AllocationFte / gap * 100.0)
             .ToArray();
 
-        // Start each fewest-changes row at its floor, capped by the source mapping percent
+        // Cap per row: for tier-2/3 this equals Percent; for tier-1 it equals the donatable surplus percent
+        var caps = Enumerable.Range(0, count)
+            .Select(i => (int)Math.Round(candidates[i].AllocationFte * 100.0))
+            .ToArray();
+
+        // Start each fewest-changes row at its floor, capped by the donatable percent
         var adj = Enumerable.Range(0, count)
-            .Select(i => Math.Min((int)Math.Floor(unrounded[i]), candidates[i].Percent))
+            .Select(i => Math.Min((int)Math.Floor(unrounded[i]), caps[i]))
             .ToArray();
 
         var deficit = target - adj.Sum();
@@ -280,7 +289,7 @@ public class DataService(WorkforceDbContext context)
         foreach (var idx in order)
         {
             if (distributed >= deficit) break;
-            if (adj[idx] < candidates[idx].Percent)
+            if (adj[idx] < caps[idx])
             {
                 adj[idx]++;
                 distributed++;
@@ -326,7 +335,8 @@ public class DataService(WorkforceDbContext context)
                 rows.Add(new DonorCandidateRow(
                     m.Resource.Name, m.Activity.Name, m.Activity.ActivityType,
                     m.Percent, impliedCost, donatableFte, m.Resource.MonthlyRate, gapCoverage,
-                    0.0, 0.0, crossDiv, DonablePercent: donablePct));
+                    0.0, 0.0, crossDiv, DonablePercent: donablePct,
+                    ResourceDivision: m.Resource.Division));
             }
         }
         return rows.OrderByDescending(r => r.AllocationFte).ToList();
@@ -354,10 +364,25 @@ public class DataService(WorkforceDbContext context)
                 return new DonorCandidateRow(
                     m.Resource.Name, m.Activity.Name, m.Activity.ActivityType,
                     m.Percent, cost, fte, costPerFte, gapCov,
-                    0.0, 0.0, crossDiv, DonablePercent: m.Percent);
+                    0.0, 0.0, crossDiv, DonablePercent: m.Percent,
+                    ResourceDivision: m.Resource.Division);
             })
             .OrderByDescending(r => r.AllocationFte)
             .ToList();
+    }
+
+    private static string ComposeMappingChange(DonorCandidateRow row, string targetAppName, string targetDivision)
+    {
+        string clause = row.ActivityType == "Support"
+            ? $"(reduce {row.ActivityName} from {row.Percent}% to {row.Percent - row.DonablePercent}%)"
+            : $"(remove {row.ActivityName} mapping, currently {row.Percent}%)";
+
+        var sentence = $"{row.ResourceName}: add {row.DonablePercent}% to {targetAppName} Support {clause}";
+
+        if (row.RequiresCrossDivisionalAlignment)
+            sentence += $" — requires cross-divisional sign-off ({row.ResourceDivision} → {targetDivision})";
+
+        return sentence;
     }
 
     public async Task<UnallocatedResourcesResult> GetUnallocatedResourcesAsync(

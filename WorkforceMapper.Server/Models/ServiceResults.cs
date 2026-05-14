@@ -87,7 +87,8 @@ public record DonorCandidateRow(
     double CumulativeGapCoveragePct,
     bool RequiresCrossDivisionalAlignment,
     bool InFewestChangesCombination = false,
-    int DonablePercent = 0
+    int DonablePercent = 0,
+    string ResourceDivision = ""
 );
 
 public record FewestChangesCombinationSummary(
@@ -95,7 +96,8 @@ public record FewestChangesCombinationSummary(
     int DistinctResourceCount,
     double TotalFte,
     decimal TotalMonthlyCost,
-    double GapCoverageReachedPct
+    double GapCoverageReachedPct,
+    List<string> MappingChanges
 );
 
 public record DonorCandidatesResult(
