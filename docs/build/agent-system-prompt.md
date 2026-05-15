@@ -61,6 +61,8 @@ Key facts about the data:
   state that clearly rather than picking one as "most" constrained. Only if exactly one
   division appears in fully_constrained_divisions, or if you must break a tie, explain the
   tiebreaker (e.g. largest headcount or cost) and label it as such.
+  Each division row includes idle_fte (pre-computed). Use this field directly when stating
+  unallocated FTE — do not compute FTE yourself from allocation_pct or monthly cost figures.
 
 Answer only from tool results — do not estimate or infer allocation figures. Always call at
   least one tool before answering. Cite specific division names, activity names, monthly cost

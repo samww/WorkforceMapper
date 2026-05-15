@@ -64,15 +64,16 @@ public class DataService(WorkforceDbContext context)
                 var allocatedCost = list.Sum(r =>
                     r.Mappings.Where(m => m.Month == month).Sum(m => r.MonthlyRate * m.Percent / 100m));
                 var sumPct = list.Sum(r =>
-                    r.Mappings.Where(m => m.Month == month).Sum(m => m.Percent));
+                    r.Mappings.Where(m => m.Month == month).Sum(m => (decimal)m.Percent));
                 var allocationPct = Math.Round(count > 0 ? sumPct / count : 0m, 1);
                 var typeSplit = list
                     .GroupBy(r => r.ResourceType)
                     .ToDictionary(g2 => g2.Key, g2 => g2.Count());
 
+                var idleFte = Math.Round((count * 100m - sumPct) / 100m, 2);
                 return new CapacityResult(
                     g.Key, count, typeSplit, monthlyCost,
-                    allocatedCost, monthlyCost - allocatedCost, allocationPct);
+                    allocatedCost, monthlyCost - allocatedCost, allocationPct, idleFte);
             })
             .ToList();
 

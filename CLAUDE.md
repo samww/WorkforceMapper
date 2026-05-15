@@ -4,7 +4,7 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **#30–#35**. Done: #2–#23, #26, #27, #29, #31, #32, #33, #35. Open: #30, #34 (agent tool-quality follow-ups; see `docs/temp/agent-response-feedback.md`).
+Active iteration: **#30–#36**. Done: #2–#23, #26, #27, #29, #31, #32, #33, #35, #36. Open: #30, #34 (agent tool-quality follow-ups; see `docs/temp/agent-response-feedback.md`).
 
 Only read deeper docs when directly relevant to the issue being worked on:
 

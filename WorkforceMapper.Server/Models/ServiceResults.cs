@@ -7,7 +7,8 @@ public record CapacityResult(
     decimal MonthlyCost,
     decimal AllocatedMonthlyCost,
     decimal UnallocatedMonthlyCost,
-    decimal AllocationPct
+    decimal AllocationPct,
+    decimal IdleFte
 );
 
 public record CapacitySummaryResult(
