@@ -4,7 +4,7 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Issues #2–#38 are complete; their per-issue specs in `docs/build/issue-N-*.md` are reference-only when maintaining that code. Open work is tracked on GitHub — each open issue links to a feature-level design doc in `docs/build/` rather than a per-issue spec.
+Issues #2–#39 are complete; their per-issue specs in `docs/build/issue-N-*.md` are reference-only when maintaining that code. Open work is tracked on GitHub — each open issue links to a feature-level design doc in `docs/build/` rather than a per-issue spec.
 
 Additional docs (only when needed):
 - `docs/build/risk-model.md` — capacity coverage, application risk, product risk, donor candidate tier model

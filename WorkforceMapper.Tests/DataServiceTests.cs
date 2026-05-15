@@ -1121,6 +1121,46 @@ public class DataServiceTests
         Assert.Equal(2, result.TotalResourceCount);
     }
 
+    // ── get_application_risk ─────────────────────────────────────────────────
+
+    // Inactive-resource Support mappings must not count toward coverage_fte;
+    // the snapshot active-flag gate owns this rule (ADR 9).
+    [Fact]
+    public async Task GetApplications_InactiveResourceSupportMapping_ExcludedFromCoverage()
+    {
+        await using var context = CreateContext();
+        var active = new Resource
+        {
+            ResourceId = "AR00001", Name = "Active Resource", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 10000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        };
+        var inactive = new Resource
+        {
+            ResourceId = "AR00002", Name = "Inactive Resource", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 10000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=0,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        };
+        context.Resources.AddRange(active, inactive);
+        await context.SaveChangesAsync();
+
+        // Activity 5 = AuthService - Support (ApplicationId = 4, MinSupportFte = 4.0)
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = active.Id,   ActivityId = 5, Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = inactive.Id, ActivityId = 5, Month = "2026-05", Percent = 100 }
+        );
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var results = await svc.GetApplicationsAsync("2026-05", applicationId: 4);
+
+        var authService = Assert.Single(results);
+        Assert.Equal(0.50, authService.current_coverage_fte, precision: 10);
+        Assert.Equal("high", authService.risk); // 0.50 < MinSupportFte (4.0)
+    }
+
     // get_application_risk must accept application_name so the LLM can filter to one app
     // without knowing its numeric ID — same contract as get_donor_candidates
     [Fact]

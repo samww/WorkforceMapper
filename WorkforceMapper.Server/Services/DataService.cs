@@ -712,22 +712,13 @@ public class DataService(WorkforceDbContext context)
         var allProducts = await context.Products.ToListAsync();
         var productById = allProducts.ToDictionary(p => p.Id);
 
-        var supportMappings = await context.Mappings
-            .Where(m => m.Month == month && m.Activity.ActivityType == "Support")
-            .Include(m => m.Resource)
-            .Include(m => m.Activity)
-            .ToListAsync();
-
-        var coverageByApp = supportMappings
-            .Where(m => GetMonthFlag(m.Resource, month) == 1)
-            .GroupBy(m => m.Activity.ApplicationId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(m => (double)m.Percent / 100.0));
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
 
         var appRiskById = applications.ToDictionary(
             app => app.Id,
             app =>
             {
-                var cov = coverageByApp.TryGetValue(app.Id, out var c) ? c : 0.0;
+                var cov = snapshot.SupportCoverageOf(app.Id);
                 return RiskCalculator.ClassifyApplication(cov, app.MinSupportFte, app.RecommendedSupportFte);
             });
 
@@ -796,7 +787,7 @@ public class DataService(WorkforceDbContext context)
         return applications
             .Select(app =>
             {
-                var coverage = coverageByApp.TryGetValue(app.Id, out var c) ? c : 0.0;
+                var coverage = snapshot.SupportCoverageOf(app.Id);
                 var risk = appRiskById[app.Id];
                 var division = divisionById[app.Id];
                 var products = (productIdsByApp.TryGetValue(app.Id, out var pids) ? pids : [])
