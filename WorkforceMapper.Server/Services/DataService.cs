@@ -49,38 +49,30 @@ public class DataService(WorkforceDbContext context)
 
     public async Task<CapacitySummaryResult> GetCapacityByDivisionAsync(string month)
     {
-        var resources = await context.Resources
-            .Include(r => r.Mappings)
-            .ToListAsync();
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
 
-        var divisions = resources
-            .Where(r => GetMonthFlag(r, month) == 1)
-            .GroupBy(r => r.Division)
+        var divisions = snapshot.ActiveResources
+            .GroupBy(ar => ar.Resource.Division)
             .Select(g =>
             {
-                var list = g.ToList();
+                var list  = g.ToList();
                 var count = list.Count;
-                var monthlyCost = list.Sum(r => r.MonthlyRate);
-                var allocatedCost = list.Sum(r =>
-                    r.Mappings.Where(m => m.Month == month).Sum(m => r.MonthlyRate * m.Percent / 100m));
-                var sumPct = list.Sum(r =>
-                    r.Mappings.Where(m => m.Month == month).Sum(m => (decimal)m.Percent));
+                var monthlyCost   = list.Sum(ar => ar.Resource.MonthlyRate);
+                var allocatedCost = list.Sum(ar => ar.AllocatedCost);
+                var sumPct        = (decimal)list.Sum(ar => ar.AllocationPercent);
                 var allocationPct = Math.Round(count > 0 ? sumPct / count : 0m, 1);
-                var typeSplit = list
-                    .GroupBy(r => r.ResourceType)
+                var typeSplit     = list
+                    .GroupBy(ar => ar.Resource.ResourceType)
                     .ToDictionary(g2 => g2.Key, g2 => g2.Count());
-
-                var idleFte = Math.Round((count * 100m - sumPct) / 100m, 2);
+                var idleFte = Math.Round((decimal)list.Sum(ar => ar.IdleFte), 2);
                 return new CapacityResult(
                     g.Key, count, typeSplit, monthlyCost,
                     allocatedCost, monthlyCost - allocatedCost, allocationPct, idleFte);
             })
             .ToList();
 
-        var totalCount = divisions.Sum(d => d.ResourceCount);
-        var totalSumPct = resources
-            .Where(r => GetMonthFlag(r, month) == 1)
-            .Sum(r => r.Mappings.Where(m => m.Month == month).Sum(m => (decimal)m.Percent));
+        var totalCount        = divisions.Sum(d => d.ResourceCount);
+        var totalSumPct       = (decimal)snapshot.ActiveResources.Sum(ar => ar.AllocationPercent);
         var overallAllocationPct = totalCount > 0 ? totalSumPct / totalCount : 0m;
 
         var fullyConstrained = divisions
