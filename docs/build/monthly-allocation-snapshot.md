@@ -89,13 +89,13 @@ If chat-turn duplication (same month across multiple tool calls in one SSE respo
 
 Work proceeds in five slices. Slice 1 validates the interface; slices 2–5 are mechanical conversions.
 
-| Slice | Tool method | What it validates |
-|---|---|---|
-| 1 | `GetCapacityByDivisionAsync` | The full `ActiveResource` view (`AllocationPercent`, `AllocatedCost`, `IdleCost`, `IdleFte`), the projection pattern, snapshot construction. **Smallest blast radius — pause here, look at the diff, confirm the interface is right before continuing.** |
-| 2 | `GetActivityAllocationsAsync`, `GetUnallocatedResourcesAsync`, `GetOverallocatedResourcesAsync` | `ActiveMappings` per-mapping access; reuse of the projection pattern across three small methods. |
-| 3 | `GetApplicationsAsync` | First real exercise of `SupportCoverageOf`. Bigger because it also touches the dependency graph (which stays in DataService for now). If the snapshot interface has gaps, this slice surfaces them. |
-| 4 | `GetCostByProductAsync` | Per-mapping `AllocatedCost` across product/project graph navigation. |
-| 5 | `GetDonorCandidatesAsync` | The 8-tier orchestration consumes the snapshot. Largest method, most moving parts; left for last so the snapshot is battle-tested when this lands. |
+| Slice | Tool method | What it validates | Status |
+|---|---|---|---|
+| 1 | `GetCapacityByDivisionAsync` | The full `ActiveResource` view (`AllocationPercent`, `AllocatedCost`, `IdleCost`, `IdleFte`), the projection pattern, snapshot construction. | **Done (#37)** |
+| 2 | `GetActivityAllocationsAsync`, `GetUnallocatedResourcesAsync`, `GetOverallocatedResourcesAsync` | `ActiveMappings` per-mapping access; reuse of the projection pattern across three small methods. | **Done (#38)** |
+| 3 | `GetApplicationsAsync` | First real exercise of `SupportCoverageOf`. Bigger because it also touches the dependency graph (which stays in DataService for now). If the snapshot interface has gaps, this slice surfaces them. | Open |
+| 4 | `GetCostByProductAsync` | Per-mapping `AllocatedCost` across product/project graph navigation. | Open |
+| 5 | `GetDonorCandidatesAsync` | The 8-tier orchestration consumes the snapshot. Largest method, most moving parts; left for last so the snapshot is battle-tested when this lands. | Open |
 
 Each slice is a single PR. Acceptance criteria forbid regressions in existing tests and require new snapshot-level tests where the slice introduces a new primitive.
 

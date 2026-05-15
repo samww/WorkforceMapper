@@ -94,35 +94,27 @@ public class DataService(WorkforceDbContext context)
     public async Task<ActivityAllocationsResult> GetActivityAllocationsAsync(
         int? activityId, string? division, string? activityType, string? activityName, string month)
     {
-        var resources = await context.Resources
-            .Include(r => r.Mappings)
-            .ThenInclude(m => m.Activity)
-            .ToListAsync();
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
 
-        var active = resources
-            .Where(r => GetMonthFlag(r, month) == 1)
-            .Where(r => division == null || r.Division == division);
-
-        var pairs = active.SelectMany(
-            r => r.Mappings.Where(m => m.Month == month),
-            (r, m) => (Resource: r, Mapping: m));
+        var mappings = snapshot.ActiveMappings
+            .Where(am => division == null || am.Resource.Division == division);
 
         if (activityId != null)
-            pairs = pairs.Where(x => x.Mapping.ActivityId == activityId.Value);
+            mappings = mappings.Where(am => am.Activity.Id == activityId.Value);
         if (activityType != null)
-            pairs = pairs.Where(x => x.Mapping.Activity.ActivityType == activityType);
+            mappings = mappings.Where(am => am.Activity.ActivityType == activityType);
         if (activityName != null)
-            pairs = pairs.Where(x => x.Mapping.Activity.Name.Contains(activityName, StringComparison.OrdinalIgnoreCase));
+            mappings = mappings.Where(am => am.Activity.Name.Contains(activityName, StringComparison.OrdinalIgnoreCase));
 
-        var rows = pairs.Select(x => new AllocationResult(
-            x.Mapping.ActivityId,
-            x.Mapping.Activity.Name,
-            x.Mapping.Activity.ActivityType,
-            x.Resource.Id,
-            x.Resource.Name,
-            x.Resource.Division,
-            x.Mapping.Percent,
-            x.Resource.MonthlyRate * x.Mapping.Percent / 100m
+        var rows = mappings.Select(am => new AllocationResult(
+            am.Activity.Id,
+            am.Activity.Name,
+            am.Activity.ActivityType,
+            am.Resource.Id,
+            am.Resource.Name,
+            am.Resource.Division,
+            am.Percent,
+            am.AllocatedCost
         )).ToList();
 
         return new ActivityAllocationsResult(
@@ -476,21 +468,15 @@ public class DataService(WorkforceDbContext context)
         int thresholdPct, string? division, string? month)
     {
         var m = month ?? Constants.DefaultMonth;
-        var resources = await context.Resources
-            .Include(r => r.Mappings)
-            .ToListAsync();
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, m);
 
-        var rows = resources
-            .Where(r => GetMonthFlag(r, m) == 1)
-            .Where(r => division == null || r.Division == division)
-            .Select(r =>
-            {
-                var totalPct = r.Mappings.Where(mapping => mapping.Month == m).Sum(mapping => mapping.Percent);
-                return new UnallocatedResult(
-                    r.ResourceId, r.Name, r.Division, r.ResourceType, r.MonthlyRate,
-                    totalPct, r.MonthlyRate * (100m - totalPct) / 100m);
-            })
-            .Where(r => r.AllocationPct < thresholdPct)
+        var rows = snapshot.ActiveResources
+            .Where(ar => division == null || ar.Resource.Division == division)
+            .Where(ar => ar.AllocationPercent < thresholdPct)
+            .Select(ar => new UnallocatedResult(
+                ar.Resource.ResourceId, ar.Resource.Name, ar.Resource.Division,
+                ar.Resource.ResourceType, ar.Resource.MonthlyRate,
+                ar.AllocationPercent, ar.IdleCost))
             .ToList();
 
         var divisionGroups = rows
@@ -583,21 +569,15 @@ public class DataService(WorkforceDbContext context)
         string? division, int thresholdPct, string? month)
     {
         var m = month ?? Constants.DefaultMonth;
-        var resources = await context.Resources
-            .Include(r => r.Mappings)
-            .ToListAsync();
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, m);
 
-        return resources
-            .Where(r => GetMonthFlag(r, m) == 1)
-            .Where(r => division == null || r.Division == division)
-            .Select(r =>
-            {
-                var totalPct = r.Mappings.Where(mapping => mapping.Month == m).Sum(mapping => mapping.Percent);
-                return new OverallocatedResult(
-                    r.ResourceId, r.Name, r.Company, r.ResourceType, r.Division,
-                    totalPct, totalPct - thresholdPct);
-            })
-            .Where(r => r.AllocationPct > thresholdPct)
+        return snapshot.ActiveResources
+            .Where(ar => division == null || ar.Resource.Division == division)
+            .Where(ar => ar.AllocationPercent > thresholdPct)
+            .Select(ar => new OverallocatedResult(
+                ar.Resource.ResourceId, ar.Resource.Name, ar.Resource.Company,
+                ar.Resource.ResourceType, ar.Resource.Division,
+                ar.AllocationPercent, ar.AllocationPercent - thresholdPct))
             .ToList();
     }
 
