@@ -175,6 +175,10 @@ public class DataService(WorkforceDbContext context)
             .ToListAsync();
         var activeMappings = allMappings.Where(m => GetMonthFlag(m.Resource, month) == 1).ToList();
 
+        // All active resources for the month (needed by BuildIdleTier — resources with zero mappings have idle FTE)
+        var allResources = await context.Resources.ToListAsync();
+        var activeResources = allResources.Where(r => GetMonthFlag(r, month) == 1).ToList();
+
         // Surplus support FTE per application
         var allApplications = await context.Applications.Include(a => a.Activities).ToListAsync();
         string AppDiv(Application a) => a.Activities.FirstOrDefault()?.Division ?? "";
@@ -194,15 +198,17 @@ public class DataService(WorkforceDbContext context)
             .Where(a => AppDiv(a) == division)
             .Sum(a => appSurplus.GetValueOrDefault(a.Id));
 
-        // Build tiers 1–6
-        var tier1 = BuildSurplusSupportTier(activeMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: false);
-        var tier2 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: false);
-        var tier3 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Project",       gap, crossDiv: false);
-        var tier4 = BuildSurplusSupportTier(activeMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: true);
-        var tier5 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: true);
-        var tier6 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Project",       gap, crossDiv: true);
+        // Build tiers 1–8
+        var tier1 = BuildIdleTier(activeMappings, activeResources, excludedResourceIds, division, gap, crossDiv: false);
+        var tier2 = BuildSurplusSupportTier(activeMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: false);
+        var tier3 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: false);
+        var tier4 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Project",       gap, crossDiv: false);
+        var tier5 = BuildIdleTier(activeMappings, activeResources, excludedResourceIds, division, gap, crossDiv: true);
+        var tier6 = BuildSurplusSupportTier(activeMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: true);
+        var tier7 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: true);
+        var tier8 = BuildNonSupportTier(activeMappings, excludedResourceIds, division, "Project",       gap, crossDiv: true);
 
-        var sorted = tier1.Concat(tier2).Concat(tier3).Concat(tier4).Concat(tier5).Concat(tier6).ToList();
+        var sorted = tier1.Concat(tier2).Concat(tier3).Concat(tier4).Concat(tier5).Concat(tier6).Concat(tier7).Concat(tier8).ToList();
 
         var runningFte = 0.0;
         var withCumulative = sorted.Select(c =>
@@ -233,22 +239,21 @@ public class DataService(WorkforceDbContext context)
                 comboRows.Sum(c => c.AllocationFte),
                 comboRows.Sum(c => c.ImpliedMonthlyCost),
                 candidates[stoppingIdx].CumulativeGapCoveragePct,
-                mappingChanges);
+                mappingChanges,
+                ComposeSummaryParagraph(comboRows, application.Name, surplusSupportFteAvailable));
         }
 
         var totalAvailableCandidatesCount = candidates.Count;
 
-        var limit = stoppingIdx >= 0
-            ? stoppingIdx + 1 + DonorCandidateBufferRows
-            : DonorCandidateBufferRows * 2;
-        var trimmed = candidates.Count > limit ? candidates.Take(limit).ToList() : candidates;
+        // Combo rows are fully represented in fewest_changes_combination; candidates = pipeline only
+        var trimmed = stoppingIdx >= 0
+            ? candidates.Where(c => !c.InFewestChangesCombination).Take(DonorCandidateBufferRows).ToList()
+            : candidates.Take(DonorCandidateBufferRows * 2).ToList();
 
         return new DonorCandidatesResult(
             application.Id, application.Name, division,
             currentCoverage, application.MinSupportFte, application.RecommendedSupportFte,
             gap,
-            trimmed.Select(c => c.ResourceName).Distinct().Count(),
-            trimmed.Count,
             trimmed,
             surplusSupportFteAvailable,
             fewestChangesCombo,
@@ -298,6 +303,40 @@ public class DataService(WorkforceDbContext context)
 
         return candidates
             .Select((c, i) => i < count ? c with { DonablePercent = adj[i] } : c)
+            .ToList();
+    }
+
+    private static List<DonorCandidateRow> BuildIdleTier(
+        List<Mapping> activeMappings,
+        List<Resource> activeResources,
+        HashSet<int> excludedResourceIds,
+        string targetDivision,
+        double gap,
+        bool crossDiv)
+    {
+        var totalPercentByResource = activeMappings
+            .GroupBy(m => m.ResourceId)
+            .ToDictionary(g => g.Key, g => g.Sum(m => m.Percent));
+
+        return activeResources
+            .Where(r => !excludedResourceIds.Contains(r.Id)
+                        && (crossDiv ? r.Division != targetDivision : r.Division == targetDivision))
+            .Select(r =>
+            {
+                var totalPct = totalPercentByResource.GetValueOrDefault(r.Id, 0);
+                var idlePct  = 100 - totalPct;
+                var fte      = idlePct / 100.0;
+                var cost     = r.MonthlyRate * idlePct / 100m;
+                var gapCov   = gap > 0 ? fte / gap * 100.0 : 0.0;
+                return (Resource: r, TotalPct: totalPct, IdlePct: idlePct, Fte: fte, Cost: cost, GapCov: gapCov);
+            })
+            .Where(x => x.IdlePct > 0)
+            .OrderByDescending(x => x.Fte)
+            .Select(x => new DonorCandidateRow(
+                x.Resource.Name, "Idle capacity", "Idle",
+                x.TotalPct, x.Cost, x.Fte, x.Resource.MonthlyRate, x.GapCov,
+                0.0, 0.0, crossDiv, DonablePercent: x.IdlePct,
+                ResourceDivision: x.Resource.Division))
             .ToList();
     }
 
@@ -371,11 +410,66 @@ public class DataService(WorkforceDbContext context)
             .ToList();
     }
 
+    private static string ComposeSummaryParagraph(
+        List<DonorCandidateRow> comboRows,
+        string applicationName,
+        double surplusSupportFteAvailable)
+    {
+        static int TierOf(DonorCandidateRow r) => r.ActivityType switch
+        {
+            "Idle"          => r.RequiresCrossDivisionalAlignment ? 5 : 1,
+            "Support"       => r.RequiresCrossDivisionalAlignment ? 6 : 2,
+            "Minor Changes" => r.RequiresCrossDivisionalAlignment ? 7 : 3,
+            _               => r.RequiresCrossDivisionalAlignment ? 8 : 4
+        };
+
+        static string TierLabel(int tier) => tier switch
+        {
+            1 => "idle capacity in the same division",
+            2 => "surplus Support capacity in the same division",
+            3 => "Minor Changes capacity in the same division",
+            4 => "Project capacity in the same division",
+            5 => "idle capacity from other divisions",
+            6 => "surplus Support capacity from other divisions",
+            7 => "Minor Changes capacity from other divisions",
+            _ => "Project capacity from other divisions"
+        };
+
+        var rowCount      = comboRows.Count;
+        var distinctCount = comboRows.Select(r => r.ResourceName).Distinct().Count();
+        var totalFte      = comboRows.Sum(c => c.AllocationFte);
+        var totalCost     = comboRows.Sum(c => c.ImpliedMonthlyCost);
+
+        var personWord = distinctCount == 1 ? "person" : "people";
+        var changeWord = rowCount      == 1 ? "change" : "changes";
+
+        var tiers     = comboRows.Select(TierOf).Distinct().OrderBy(t => t).ToList();
+        var tierScope = tiers.Count == 1
+            ? $"(all Tier {tiers[0]}: {TierLabel(tiers[0])})"
+            : $"(spanning Tiers {tiers.First()}–{tiers.Last()})";
+
+        var costK  = (int)Math.Round(totalCost / 1000m);
+        var totals = $"Total: {totalFte:F1} FTE, ${costK}k/month.";
+
+        var tier2Fte       = comboRows.Where(r => TierOf(r) == 2).Sum(r => r.AllocationFte);
+        var exhaustionNote = tier2Fte > 0 && Math.Abs(tier2Fte - surplusSupportFteAvailable) <= 0.01
+            ? $" This exhausts the {surplusSupportFteAvailable:F1} FTE of same-division surplus Support available."
+            : "";
+
+        var tierExplanation = $"Tier system: tiers 1–4 draw from the same division as {applicationName} " +
+            "(Tier 1 idle capacity, Tier 2 surplus Support, Tier 3 Minor Changes, Tier 4 Project); " +
+            "tiers 5–8 are the same source types from other divisions and require cross-divisional alignment.";
+
+        return $"{rowCount} {changeWord} across {distinctCount} {personWord} {tierScope}. {totals}{exhaustionNote} {tierExplanation}";
+    }
+
     private static string ComposeMappingChange(DonorCandidateRow row, string targetAppName, string targetDivision)
     {
-        string clause = row.ActivityType == "Support"
-            ? $"(reduce {row.ActivityName} from {row.Percent}% to {row.Percent - row.DonablePercent}%)"
-            : $"(remove {row.ActivityName} mapping, currently {row.Percent}%)";
+        string clause = row.ActivityType == "Idle"
+            ? $"(use idle capacity — currently {row.Percent}% allocated)"
+            : row.ActivityType == "Support"
+                ? $"(reduce {row.ActivityName} from {row.Percent}% to {row.Percent - row.DonablePercent}%)"
+                : $"(remove {row.ActivityName} mapping, currently {row.Percent}%)";
 
         var sentence = $"{row.ResourceName}: add {row.DonablePercent}% to {targetAppName} Support {clause}";
 

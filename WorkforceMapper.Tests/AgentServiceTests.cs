@@ -364,7 +364,7 @@ public class AgentServiceTests
     // ── Cycle 10 ────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task BuildTools_DonorCandidates_DescribesСixTierPriorityOrder()
+    public async Task BuildTools_DonorCandidates_DescribesEightTierPriorityOrder()
     {
         await using var ctx = CreateContext();
         var dataService = new DataService(ctx);
@@ -380,9 +380,9 @@ public class AgentServiceTests
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
         var desc = tool.Function!.Description;
-        Assert.Contains("six-tier", desc, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("eight-tier", desc, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("tiers 1", desc, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("tiers 4", desc, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tiers 5", desc, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Cycle 11 ────────────────────────────────────────────────────────────
@@ -410,8 +410,9 @@ public class AgentServiceTests
     // ── Cycle 12 ────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task BuildTools_DonorCandidates_DocumentsSurplusSupportFteAvailable()
+    public async Task BuildTools_DonorCandidates_DocumentsSummaryParagraph()
     {
+        // summary_paragraph replaces the old surplus_support_fte_available instruction (#34)
         await using var ctx = CreateContext();
         var dataService = new DataService(ctx);
 
@@ -426,7 +427,7 @@ public class AgentServiceTests
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
         var desc = tool.Function!.Description;
-        Assert.Contains("surplus_support_fte_available", desc, StringComparison.Ordinal);
+        Assert.Contains("summary_paragraph", desc, StringComparison.Ordinal);
     }
 
     // ── Cycle 13 ────────────────────────────────────────────────────────────
@@ -480,8 +481,9 @@ public class AgentServiceTests
     // ── Cycle 15 ────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task BuildSystemPrompt_DonorParagraph_InstructsUsingSurplusSupportFteAvailable()
+    public async Task BuildSystemPrompt_DonorParagraph_InstructsRenderingSummaryParagraphVerbatim()
     {
+        // summary_paragraph replaces the old surplus_support_fte_available + tier-explain instructions (#34)
         await using var ctx = CreateContext();
         var dataService = new DataService(ctx);
 
@@ -495,7 +497,8 @@ public class AgentServiceTests
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
-        Assert.Contains("surplus_support_fte_available", systemText, StringComparison.Ordinal);
+        Assert.Contains("summary_paragraph", systemText, StringComparison.Ordinal);
+        Assert.Contains("verbatim", systemText, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Cycle 16 ────────────────────────────────────────────────────────────
@@ -524,8 +527,9 @@ public class AgentServiceTests
     }
 
     [Fact]
-    public async Task BuildSystemPrompt_DonorParagraph_ExplainsTierSystemToUser()
+    public async Task BuildSystemPrompt_DonorParagraph_InstructsTiersBakedIntoParagraph()
     {
+        // Tier-system explanation is now baked into summary_paragraph (#34); prompt must not ask agent to re-explain it
         await using var ctx = CreateContext();
         var dataService = new DataService(ctx);
 
@@ -539,9 +543,8 @@ public class AgentServiceTests
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
-        Assert.Contains("tier 1", systemText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("tier 2", systemText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("tier 3", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tier-system description", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("baked", systemText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

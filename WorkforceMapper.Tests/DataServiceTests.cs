@@ -370,9 +370,9 @@ public class DataServiceTests
         Assert.Equal(3.70, result.GapFte, precision: 5);       // 4.0 - 0.30
     }
 
-    // Pre-computed counts must match unique resources and total allocation rows
+    // When gap is not closeable all donors are pipeline candidates (no combo rows)
     [Fact]
-    public async Task GetDonorCandidates_ReturnsPrecomputedCounts_Correctly()
+    public async Task GetDonorCandidates_WhenGapNotCloseable_AllCandidatesArePipeline()
     {
         await using var context = CreateContext();
         // Two donors: one with two separate project allocations (two rows), one with one
@@ -380,11 +380,14 @@ public class DataServiceTests
         var donorB = MakePeResource("DC00006d", "Bob One");
         context.Resources.AddRange(donorA, donorB);
         await context.SaveChangesAsync();
-        // Activity 7 and 8 are both PE project activities
+        // Activity 7 and 8 are both PE project activities; Activity 6 = ObsStack Support pads to 100%
+        // ObsStack coverage = 0.40 + 0.60 = 1.0 FTE < 2.0 recommended → no surplus row
         context.Mappings.AddRange(
             new Mapping { ResourceId = donorA.Id, ActivityId = 7, Month = "2026-05", Percent = 30 },
             new Mapping { ResourceId = donorA.Id, ActivityId = 8, Month = "2026-05", Percent = 30 },
-            new Mapping { ResourceId = donorB.Id, ActivityId = 7, Month = "2026-05", Percent = 40 }
+            new Mapping { ResourceId = donorA.Id, ActivityId = 6, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 6, Month = "2026-05", Percent = 60 }
         );
         await context.SaveChangesAsync();
 
@@ -392,13 +395,11 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        // 3 allocation rows in total, across 2 unique resources
-        Assert.Equal(3, result.TotalAllocationCount);
-        Assert.Equal(2, result.UniqueResourceCount);
-        // Sanity: counts match the actual list
-        Assert.Equal(result.TotalAllocationCount, result.Candidates.Count);
-        Assert.Equal(result.UniqueResourceCount,
-            result.Candidates.Select(c => c.ResourceName).Distinct().Count());
+        // AuthService gap = 4.0 FTE; total donor pool = 1.0 FTE → gap not closeable, no combo
+        Assert.Null(result.FewestChangesCombination);
+        Assert.Equal(3, result.Candidates.Count);
+        Assert.Equal(2, result.Candidates.Select(c => c.ResourceName).Distinct().Count());
+        Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
     }
 
     // Cycle 5 — Inactive resources for the queried month are excluded
@@ -449,7 +450,7 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Dave Analytics");
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Dave Analytics" && c.ActivityType == "Project");
         Assert.True(row.RequiresCrossDivisionalAlignment);
     }
 
@@ -461,8 +462,8 @@ public class DataServiceTests
         var resource = MakePeResource("DC00003", "Carol Support");
         context.Resources.Add(resource);
         await context.SaveChangesAsync();
-        // Activity 1 = "CoreDataWarehouse - Support" (Platform Engineering)
-        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 1, Month = "2026-05", Percent = 50 });
+        // Activity 1 = "CoreDataWarehouse - Support" (Platform Engineering) — at 100% so no idle FTE
+        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 1, Month = "2026-05", Percent = 100 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -540,7 +541,7 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.True(result.Candidates.Count >= 2);
-        var ourTwo = result.Candidates.Where(c => c.ResourceName is "Small Donor" or "Large Donor").ToList();
+        var ourTwo = result.Candidates.Where(c => (c.ResourceName is "Small Donor" or "Large Donor") && c.ActivityType == "Project").ToList();
         Assert.Equal(2, ourTwo.Count);
         Assert.Equal("Large Donor", ourTwo[0].ResourceName);
         Assert.Equal("Small Donor", ourTwo[1].ResourceName);
@@ -556,14 +557,18 @@ public class DataServiceTests
         var donor = MakePeResource("DC00008", "Gap Donor");
         context.Resources.Add(donor);
         await context.SaveChangesAsync();
-        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
+        // Activity 7 = PE project (40%); Activity 6 = ObsStack Support (60%) pads to 100% → no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = donor.Id, ActivityId = 6, Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Gap Donor");
+        // Only the project row — no idle row since donor is at 100% total allocation
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Gap Donor" && c.ActivityType == "Project");
         Assert.Equal(0.40, row.AllocationFte, precision: 5);
         Assert.Equal(10.0, row.GapCoveragePct, precision: 3); // 0.40 / 4.0 * 100
         // Single-row cumulative fields equal the per-row values
@@ -584,9 +589,13 @@ public class DataServiceTests
         var large = new Resource { ResourceId = "DC00009b", Name = "Cumul Large", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
         context.Resources.AddRange(small, large);
         await context.SaveChangesAsync();
+        // Activity 7 = PE project; Activity 6 = ObsStack Support pads each to 100% → no idle FTE
+        // ObsStack coverage = 0.60 + 0.40 = 1.0 FTE < 2.0 recommended → no surplus row
         context.Mappings.AddRange(
             new Mapping { ResourceId = small.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
-            new Mapping { ResourceId = large.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+            new Mapping { ResourceId = small.Id, ActivityId = 6, Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = large.Id, ActivityId = 7, Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = large.Id, ActivityId = 6, Month = "2026-05", Percent = 40 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -606,9 +615,9 @@ public class DataServiceTests
 
     // ── Issue #29: six-tier donor candidate pipeline ─────────────────────────
 
-    // Case 4 (tracer bullet) — tier 4–6 rows have RequiresCrossDivisionalAlignment = true; tiers 1–3 have false
+    // Case 4 (tracer bullet) — tier 5–8 rows have RequiresCrossDivisionalAlignment = true; tiers 1–4 have false
     [Fact]
-    public async Task GetDonorCandidates_Tier456_RequiresCrossDivisionalAlignment_True()
+    public async Task GetDonorCandidates_Tier5678_RequiresCrossDivisionalAlignment_True()
     {
         await using var context = CreateContext();
         var peResource       = MakePeResource("T4A00001", "PE Tier3 Donor");
@@ -631,8 +640,8 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var peRow       = Assert.Single(result.Candidates, c => c.ResourceName == "PE Tier3 Donor");
-        var analyticsRow = Assert.Single(result.Candidates, c => c.ResourceName == "Analytics Tier6 Donor");
+        var peRow       = Assert.Single(result.Candidates, c => c.ResourceName == "PE Tier3 Donor" && c.ActivityType == "Project");
+        var analyticsRow = Assert.Single(result.Candidates, c => c.ResourceName == "Analytics Tier6 Donor" && c.ActivityType == "Project");
         Assert.False(peRow.RequiresCrossDivisionalAlignment);
         Assert.True(analyticsRow.RequiresCrossDivisionalAlignment);
     }
@@ -660,9 +669,9 @@ public class DataServiceTests
         Assert.Contains(result.Candidates, c => c.ResourceName == "PE Project Donor");
     }
 
-    // Case 5a — Application at exactly recommended_support_fte yields no tier-1 donor
+    // Case 5a — Application at exactly recommended_support_fte yields no Tier-2 surplus-Support donor
     [Fact]
-    public async Task GetDonorCandidates_Tier1_ExactlyAtRecommendedFte_YieldsNoDonor()
+    public async Task GetDonorCandidates_Tier2_ExactlyAtRecommendedFte_YieldsNoDonor()
     {
         // Custom PE app: recommended = 1.0; 1 resource at 100% → coverage = recommended → surplus = 0
         await using var context = CreateContext();
@@ -683,9 +692,9 @@ public class DataServiceTests
         Assert.DoesNotContain(result.Candidates, c => c.ResourceName == "Exactly Recommended");
     }
 
-    // Case 5b — Application one percent-point above recommended yields a tier-1 donor with surplus FTE only
+    // Case 5b — Application one percent-point above recommended yields a Tier-2 surplus-Support donor with surplus FTE only
     [Fact]
-    public async Task GetDonorCandidates_Tier1_OnePercentAboveRecommended_YieldsSurplusFteOnly()
+    public async Task GetDonorCandidates_Tier2_OnePercentAboveRecommended_YieldsSurplusFteOnly()
     {
         // Custom PE app: recommended = 0.50; resource at 51% → coverage = 0.51 → surplus = 0.01
         // donatable FTE = 0.51 * (0.01 / 0.51) = 0.01
@@ -704,14 +713,14 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var row = Assert.Single(result.Candidates, c => c.ResourceName == "OneAbove Resource");
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "OneAbove Resource" && c.ActivityType == "Support");
         Assert.Equal(0.01, row.AllocationFte, precision: 5);
         Assert.False(row.RequiresCrossDivisionalAlignment);
     }
 
-    // Case 1 — Tier 1 candidate appears before tier 2 candidate
+    // Case 1 — Tier 2 (surplus Support) candidate appears before Tier 3 (Minor Changes) candidate
     [Fact]
-    public async Task GetDonorCandidates_Tier1_AppearsBefore_Tier2()
+    public async Task GetDonorCandidates_Tier2_AppearsBefore_Tier3()
     {
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
@@ -731,15 +740,16 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var tier1Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier1 Donor");
-        var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 Donor");
+        // "Tier1 Donor" is a surplus support row (new tier 2); "Tier2 Donor" is minor-changes (new tier 3)
+        var tier1Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier1 Donor" && c.ActivityType == "Support");
+        var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 Donor" && c.ActivityType == "Minor Changes");
         Assert.True(tier1Idx >= 0 && tier2Idx >= 0, "Both candidates must appear");
-        Assert.True(tier1Idx < tier2Idx, "Tier-1 must appear before tier-2");
+        Assert.True(tier1Idx < tier2Idx, "Surplus Support must appear before Minor Changes");
     }
 
-    // Case 2 — Tier 2 candidate appears before tier 3 candidate
+    // Case 2 — Tier 3 (Minor Changes) candidate appears before Tier 4 (Project) candidate
     [Fact]
-    public async Task GetDonorCandidates_Tier2_AppearsBefore_Tier3()
+    public async Task GetDonorCandidates_Tier3_AppearsBefore_Tier4()
     {
         await using var context = CreateContext();
         var tier2Resource = MakePeResource("T2B00001", "Tier2 MinorChg");
@@ -759,14 +769,14 @@ public class DataServiceTests
         var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 MinorChg");
         var tier3Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier3 Project");
         Assert.True(tier2Idx >= 0 && tier3Idx >= 0, "Both candidates must appear");
-        Assert.True(tier2Idx < tier3Idx, "Tier-2 must appear before tier-3");
+        Assert.True(tier2Idx < tier3Idx, "Tier-3 (Minor Changes) must appear before Tier-4 (Project)");
     }
 
-    // Case 3 — Tiers 1–3 all appear before tiers 4–6
+    // Case 3 — Tiers 1–4 (same div) all appear before tiers 5–8 (cross div)
     [Fact]
-    public async Task GetDonorCandidates_Tiers123_AppearBefore_Tiers456()
+    public async Task GetDonorCandidates_Tiers1234_AppearBefore_Tiers5678()
     {
-        // Same-div tier-3 (PE Project) must appear before cross-div tier-6 (Analytics Project)
+        // Same-div Tier-4 (PE Project) must appear before cross-div Tier-8 (Analytics Project)
         await using var context = CreateContext();
         var peResource = MakePeResource("T3B00001", "PE Project Tier3");
         var analyticsResource = new Resource
@@ -790,16 +800,16 @@ public class DataServiceTests
         var sameDivIdx  = result.Candidates.FindIndex(c => c.ResourceName == "PE Project Tier3");
         var crossDivIdx = result.Candidates.FindIndex(c => c.ResourceName == "Analytics Project Tier6");
         Assert.True(sameDivIdx >= 0 && crossDivIdx >= 0);
-        Assert.True(sameDivIdx < crossDivIdx, "Same-div (tier 3) must appear before cross-div (tier 6)");
+        Assert.True(sameDivIdx < crossDivIdx, "Same-div (Tier 4) must appear before cross-div (Tier 8)");
     }
 
     // Case 7 — CumulativeFte accumulates correctly across a tier boundary
     [Fact]
     public async Task GetDonorCandidates_CumulativeFte_AccumulatesAcrossTierBoundary()
     {
-        // Tier-1 surplus support: donatable = 0.01 FTE
-        // Tier-2 Minor Changes: 0.25 FTE
-        // CumulativeFte at tier-2 row = 0.01 + 0.25 = 0.26
+        // Tier-2 surplus support: donatable = 0.01 FTE
+        // Tier-3 Minor Changes: 0.25 FTE
+        // CumulativeFte at tier-3 row = 0.01 + 0.25 = 0.26
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
         context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
@@ -809,17 +819,21 @@ public class DataServiceTests
         var tier2Resource = MakePeResource("T7A00002", "Tier2 Cumul");
         context.Resources.AddRange(tier1Resource, tier2Resource);
         await context.SaveChangesAsync();
+        // ObsStack filler (Activity 6, recommended=2.0) pads both to 100% → no idle FTE
+        // ObsStack total coverage = 0.49 + 0.75 = 1.24 FTE < 2.0 recommended → no surplus row
         context.Mappings.AddRange(
             new Mapping { ResourceId = tier1Resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 }, // donatable = 0.01
-            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 }); // 0.25 FTE
+            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 49 }, // pad to 100%
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 }, // 0.25 FTE
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 75 }); // pad to 100%
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        var tier1Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier1 Cumul");
-        var tier2Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier2 Cumul");
+        var tier1Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier1 Cumul" && c.ActivityType == "Support");
+        var tier2Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier2 Cumul" && c.ActivityType == "Minor Changes");
         var tier1Idx = result.Candidates.IndexOf(tier1Row);
         var tier2Idx = result.Candidates.IndexOf(tier2Row);
         Assert.True(tier1Idx < tier2Idx, "Tier-1 must precede tier-2 in the list");
@@ -866,6 +880,209 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.Equal(1.5, result.SurplusSupportFteAvailable, precision: 5);
+    }
+
+    // ── idle FTE tier (issue #35) ─────────────────────────────────────────────
+
+    // Cycle 1 — Idle resource appears as ActivityType "Idle" in candidates
+    [Fact]
+    public async Task GetDonorCandidates_IdleResource_SurfacesWithActivityTypeIdle()
+    {
+        // PE resource at 57% total allocation → 43% idle → AllocationFte = 0.43
+        // AuthService gap = 4.0 FTE; 0.43 FTE won't close it → no combo, row lands in Candidates
+        await using var context = CreateContext();
+        var idleResource = MakePeResource("I1A00001", "Emily Idle");
+        context.Resources.Add(idleResource);
+        await context.SaveChangesAsync();
+        // Activity 35 = SurveyEngine - Minor Changes (PE) — gives her 57% total allocation
+        context.Mappings.Add(new Mapping { ResourceId = idleResource.Id, ActivityId = 35, Month = "2026-05", Percent = 57 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var idleRow = Assert.Single(result.Candidates, c => c.ResourceName == "Emily Idle" && c.ActivityType == "Idle");
+        Assert.Equal("Idle capacity", idleRow.ActivityName);
+        Assert.Equal(0.43, idleRow.AllocationFte, precision: 5);
+        Assert.Equal(57, idleRow.Percent);
+        Assert.False(idleRow.RequiresCrossDivisionalAlignment);
+    }
+
+    // Cycle 3 — Resource on target app's Support is excluded from idle tier (already a known donor)
+    [Fact]
+    public async Task GetDonorCandidates_ResourceOnTargetSupport_ExcludedFromIdleTier()
+    {
+        // Supporter is on AuthService Support at 30% → excluded from all tiers including idle
+        // ProjectDonor has idle (60%) and appears; Supporter must not appear even with 70% idle
+        await using var context = CreateContext();
+        var supporter   = MakePeResource("I3A00001", "Target Support Idle");
+        var projectDonor = MakePeResource("I3A00002", "Regular Donor");
+        context.Resources.AddRange(supporter, projectDonor);
+        await context.SaveChangesAsync();
+        // Activity 5 = AuthService - Support (the target); supporter at 30% → 70% idle but excluded
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 5, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = projectDonor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.DoesNotContain(result.Candidates, c => c.ResourceName == "Target Support Idle");
+        Assert.Contains(result.Candidates, c => c.ResourceName == "Regular Donor" && c.ActivityType == "Idle");
+    }
+
+    // Cycle 4 — Cross-divisional idle row has RequiresCrossDivisionalAlignment = true
+    [Fact]
+    public async Task GetDonorCandidates_CrossDivisionalIdleResource_HasAlignmentFlagTrue()
+    {
+        // Analytics resource at 60% allocation → 40% idle; AuthService is PE → cross-divisional
+        await using var context = CreateContext();
+        var analyticsResource = new Resource
+        {
+            ResourceId = "I4A00001", Name = "Analytics Idle Cross",
+            ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Analytics", Country = "UK", MonthlyRate = 8000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        };
+        context.Resources.Add(analyticsResource);
+        await context.SaveChangesAsync();
+        // Activity 9 = CRM - Support (Analytics division); 60% allocated → 40% idle
+        context.Mappings.Add(new Mapping { ResourceId = analyticsResource.Id, ActivityId = 9, Month = "2026-05", Percent = 60 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var idleRow = Assert.Single(result.Candidates, c => c.ResourceName == "Analytics Idle Cross" && c.ActivityType == "Idle");
+        Assert.Equal(0.40, idleRow.AllocationFte, precision: 5);
+        Assert.True(idleRow.RequiresCrossDivisionalAlignment);
+    }
+
+    // Cycle 2 — Resource with zero mappings has 100% idle and surfaces in tier 1
+    [Fact]
+    public async Task GetDonorCandidates_ZeroMappingResource_SurfacesAsFullyIdleTier1()
+    {
+        // A PE resource with NO mappings at all has 100% idle FTE → must appear as Idle candidate
+        await using var context = CreateContext();
+        var unmapped = MakePeResource("I2A00001", "Unmapped PE");
+        context.Resources.Add(unmapped);
+        await context.SaveChangesAsync();
+        // Intentionally add NO mappings for this resource
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Unmapped PE");
+        Assert.Equal("Idle", row.ActivityType);
+        Assert.Equal(1.0, row.AllocationFte, precision: 5);
+        Assert.Equal(0, row.Percent); // total allocation = 0%
+        Assert.False(row.RequiresCrossDivisionalAlignment);
+    }
+
+    // Cycle 6 — idle tier (Tier 1) appears before surplus-Support tier (Tier 2)
+    [Fact]
+    public async Task GetDonorCandidates_IdleTier_AppearsBefore_SurplusSupportTier()
+    {
+        // PE resource at 60% allocation → 40% idle (Tier 1)
+        // PE resource at 100% on BigSurplusApp (recommended=0) → 100% surplus Support (Tier 2)
+        // Idle row must sort before the surplus Support row in the candidates list
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.0, RecommendedSupportFte = 0.0 });
+        context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var idleResource   = MakePeResource("I6A00001", "Idle PE Resource");
+        var surplusResource = MakePeResource("I6A00002", "Surplus PE Resource");
+        context.Resources.AddRange(idleResource, surplusResource);
+        await context.SaveChangesAsync();
+        // idleResource: 60% on a project → 40% idle
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = idleResource.Id,   ActivityId = 7,   Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = surplusResource.Id, ActivityId = 200, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result);
+        var idleIdx   = result.Candidates.FindIndex(c => c.ResourceName == "Idle PE Resource"    && c.ActivityType == "Idle");
+        var surplusIdx = result.Candidates.FindIndex(c => c.ResourceName == "Surplus PE Resource" && c.ActivityType == "Support");
+        Assert.True(idleIdx >= 0 && surplusIdx >= 0, "Both candidates must appear");
+        Assert.True(idleIdx < surplusIdx, "Idle (Tier 1) must appear before surplus Support (Tier 2)");
+    }
+
+    // Cycle 5 — mapping_changes text for idle row: "add X% to AppName Support (use idle capacity — currently Y% allocated)"
+    [Fact]
+    public async Task GetDonorCandidates_IdleRow_MappingChangeTextUsesIdleCapacityFormat()
+    {
+        // ObsStack (app 5) has min=1.0, recommended=2.0. No seeded mappings in in-memory DB → gap = 1.0 FTE.
+        // Supporter at 75% on ObsStack Support → gap becomes 0.25 FTE.
+        // Idle PE resource at 57% allocation has 43% idle → covers 0.25 FTE gap → enters combo.
+        // DonablePercent capped at gap (25%). Combo: single idle row.
+        await using var context = CreateContext();
+        var supporter    = MakePeResource("I5A00001", "Existing Support");
+        var idleResource = MakePeResource("I5A00002", "Emily Clarke");
+        context.Resources.AddRange(supporter, idleResource);
+        await context.SaveChangesAsync();
+        // Activity 6 = ObsStack Support (PE); Activity 35 = SurveyEngine Minor Changes (PE, pad to 100%)
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 6,  Month = "2026-05", Percent = 75 },
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 35, Month = "2026-05", Percent = 25 },
+            new Mapping { ResourceId = idleResource.Id, ActivityId = 35, Month = "2026-05", Percent = 57 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(5, null, "2026-05");
+
+        Assert.NotNull(result);
+        var mappingChange = result.FewestChangesCombination?.MappingChanges
+            .FirstOrDefault(c => c.Contains("Emily Clarke"));
+        Assert.NotNull(mappingChange);
+        Assert.Contains("use idle capacity", mappingChange);
+        Assert.Contains("currently 57% allocated", mappingChange);
+        Assert.Contains("Emily Clarke: add", mappingChange);
+        Assert.Contains("ObservabilityStack Support", mappingChange);
+    }
+
+    // Cycle 5b — cross-divisional idle row mapping_changes appends cross-divisional sign-off suffix
+    [Fact]
+    public async Task GetDonorCandidates_CrossDivIdleRow_MappingChangeAppendsCrossDivSuffix()
+    {
+        // ObsStack (app 5, PE). Supporter (PE) at 75% → gap = 0.25 FTE.
+        // No same-div idle resource. Analytics idle at 40% → tier 5 → closes gap → enters combo.
+        await using var context = CreateContext();
+        var supporter    = MakePeResource("I5B00001", "PE Supporter");
+        var crossDivIdle = new Resource
+        {
+            ResourceId = "I5B00002", Name = "Analytics Idle Xdiv",
+            ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Analytics", Country = "UK", MonthlyRate = 8000m,
+            Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0
+        };
+        context.Resources.AddRange(supporter, crossDivIdle);
+        await context.SaveChangesAsync();
+        // Activity 6 = ObsStack Support (PE); Activity 35 = SurveyEngine Minor Changes (PE pad)
+        // Activity 9 = CRM - Support (Analytics)
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 6,  Month = "2026-05", Percent = 75 },
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 35, Month = "2026-05", Percent = 25 },
+            new Mapping { ResourceId = crossDivIdle.Id, ActivityId = 9,  Month = "2026-05", Percent = 60 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(5, null, "2026-05");
+
+        Assert.NotNull(result);
+        var mappingChange = result.FewestChangesCombination?.MappingChanges
+            .FirstOrDefault(c => c.Contains("Analytics Idle Xdiv"));
+        Assert.NotNull(mappingChange);
+        Assert.Contains("use idle capacity", mappingChange);
+        Assert.Contains("requires cross-divisional sign-off", mappingChange);
     }
 
     // ── get_unallocated_resources ─────────────────────────────────────────────
@@ -1105,27 +1322,30 @@ public class DataServiceTests
         var d30 = MakePeResource("LR00022", "TB Donor 30");
         context.Resources.AddRange(d80, d50, d30);
         await context.SaveChangesAsync();
-        // Activity 7 = PE project (tier-3)
+        // Activity 7 = PE project; Activity 6 = ObsStack Support pads each to 100% → no idle FTE
+        // ObsStack total coverage = 0.20 + 0.50 + 0.70 = 1.40 FTE < 2.0 recommended → no surplus row
         context.Mappings.AddRange(
             new Mapping { ResourceId = d80.Id, ActivityId = 7, Month = "2026-05", Percent = 80 },
+            new Mapping { ResourceId = d80.Id, ActivityId = 6, Month = "2026-05", Percent = 20 },
             new Mapping { ResourceId = d50.Id, ActivityId = 7, Month = "2026-05", Percent = 50 },
-            new Mapping { ResourceId = d30.Id, ActivityId = 7, Month = "2026-05", Percent = 30 });
+            new Mapping { ResourceId = d50.Id, ActivityId = 6, Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = d30.Id, ActivityId = 7, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = d30.Id, ActivityId = 6, Month = "2026-05", Percent = 70 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
         var result = await svc.GetDonorCandidatesAsync(103, null, "2026-05");
 
         Assert.NotNull(result);
-        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
-        Assert.Equal(3, comboRows.Count);
-        var row80 = comboRows.Single(c => c.ResourceName == "TB Donor 80");
-        var row50 = comboRows.Single(c => c.ResourceName == "TB Donor 50");
-        var row30 = comboRows.Single(c => c.ResourceName == "TB Donor 30");
+        Assert.NotNull(result.FewestChangesCombination);
+        var changes = result.FewestChangesCombination.MappingChanges;
+        Assert.Equal(3, changes.Count);
+        static int Donable(string s) => int.Parse(s.Split("add ")[1].Split('%')[0]);
         // deficit = round(106.67) - (53+33+20) = 107 - 106 = 1
         // D80 and D50 tie on frac 0.33; D80 wins (larger AllocationFte) → 54
-        Assert.Equal(54, row80.DonablePercent);
-        Assert.Equal(33, row50.DonablePercent);
-        Assert.Equal(20, row30.DonablePercent);
+        Assert.Equal(54, Donable(changes.Single(s => s.Contains("TB Donor 80"))));
+        Assert.Equal(33, Donable(changes.Single(s => s.Contains("TB Donor 50"))));
+        Assert.Equal(20, Donable(changes.Single(s => s.Contains("TB Donor 30"))));
     }
 
     // Cycle 4 — when gap cannot be closed, no InFewestChangesCombination rows; independent rounding unchanged
@@ -1148,7 +1368,7 @@ public class DataServiceTests
         Assert.Null(result.FewestChangesCombination);
         Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
         // Independent rounding: DonablePercent = m.Percent = 30 for a tier-3 donor
-        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Tiny Donor");
+        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Tiny Donor" && c.ActivityType == "Project");
         Assert.Equal(30, row.DonablePercent);
     }
 
@@ -1166,16 +1386,23 @@ public class DataServiceTests
         var donor = MakePeResource("LR00010", "Cap Donor");
         context.Resources.Add(donor);
         await context.SaveChangesAsync();
-        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 35, Month = "2026-05", Percent = 60 });
+        // Activity 35 = Minor Changes (60%); Activity 6 = ObsStack Support (40%) pads to 100% → no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donor.Id, ActivityId = 35, Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = donor.Id, ActivityId = 6,  Month = "2026-05", Percent = 40 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
         var result = await svc.GetDonorCandidatesAsync(102, null, "2026-05");
 
         Assert.NotNull(result);
-        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
-        Assert.All(comboRows, row => Assert.True(row.DonablePercent <= row.Percent,
-            $"DonablePercent {row.DonablePercent} exceeds source Percent {row.Percent}"));
+        Assert.NotNull(result.FewestChangesCombination);
+        var changes = result.FewestChangesCombination.MappingChanges;
+        Assert.Single(changes);
+        static int Donable(string s) => int.Parse(s.Split("add ")[1].Split('%')[0]);
+        static int SourcePct(string s) => int.Parse(s.Split("currently ")[1].Split('%')[0]);
+        Assert.True(Donable(changes[0]) <= SourcePct(changes[0]),
+            $"DonablePercent exceeds source Percent in: {changes[0]}");
     }
 
     // Cycle 1 (tracer) — sum(DonablePercent for combo rows) == round(GapCoverageReachedPct)
@@ -1204,10 +1431,12 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
 
         Assert.NotNull(result);
-        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
-        Assert.Equal(2, comboRows.Count);
-        var expectedTarget = (int)Math.Round(result.FewestChangesCombination!.GapCoverageReachedPct);
-        Assert.Equal(expectedTarget, comboRows.Sum(c => c.DonablePercent));
+        Assert.NotNull(result.FewestChangesCombination);
+        var changes = result.FewestChangesCombination.MappingChanges;
+        Assert.Equal(2, changes.Count);
+        static int Donable(string s) => int.Parse(s.Split("add ")[1].Split('%')[0]);
+        var expectedTarget = (int)Math.Round(result.FewestChangesCombination.GapCoverageReachedPct);
+        Assert.Equal(expectedTarget, changes.Sum(Donable));
     }
 
     // ── Issue #32: trim get_donor_candidates response ────────────────────────
@@ -1216,11 +1445,14 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_TotalAvailableCandidatesCount_ReflectsPreTrimCount()
     {
-        // App with gap 1.0 FTE; 2 donors close the gap (combo = 2 rows); 6 extra donors fill the rest.
-        // Total = 8 candidates. Trimmed = 2 (combo) + 5 (buffer) = 7.
+        // App with gap 1.0 FTE; 2 donors close the gap (combo = 2 rows); 6 extra donors are pipeline.
+        // Total = 8 candidates. Combo rows go to FewestChangesCombination; Candidates = 5 pipeline rows.
         // TotalAvailableCandidatesCount must == 8 (the pre-trim count).
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 110, Name = "TrimApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
+        // Custom PaddingApp (recommended=9999) pads each resource to 100% → no idle rows
+        context.Applications.Add(new Application { Id = 998, Name = "_PadPE", MinSupportFte = 0, RecommendedSupportFte = 9999 });
+        context.Activities.Add(new Activity { Id = 997, Name = "_PadPE - Support", ActivityType = "Support", ApplicationId = 998, Division = "Platform Engineering" });
         await context.SaveChangesAsync();
 
         // 2 combo donors (60% each → cumulative hits 120% of 1.0 FTE gap)
@@ -1233,11 +1465,16 @@ public class DataServiceTests
         context.Resources.AddRange(extras);
         await context.SaveChangesAsync();
 
-        // Activity 7 = PE project (tier-3)
-        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
-        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        // Activity 7 = PE project; Activity 997 = PaddingApp Support pads each to 100%
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7,   Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 997, Month = "2026-05", Percent = 40 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7,   Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 997, Month = "2026-05", Percent = 40 });
         foreach (var e in extras)
-            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        {
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7,   Month = "2026-05", Percent = 10 });
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 997, Month = "2026-05", Percent = 90 });
+        }
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -1250,12 +1487,12 @@ public class DataServiceTests
             "Trimmed list should be shorter than total available");
     }
 
-    // Cycle 3 — trimmed list is exactly combo_count + DonorCandidateBufferRows (5)
+    // Cycle 3 — trimmed list is exactly DonorCandidateBufferRows (5) pipeline rows
     [Fact]
-    public async Task GetDonorCandidates_Trimming_CandidatesCount_EqualsComboCountPlusBuffer()
+    public async Task GetDonorCandidates_Trimming_CandidatesCount_EqualsBuffer()
     {
         // Same seed as cycle 2: 2 combo rows + 6 extras = 8 total.
-        // After trim: 2 + 5 = 7.
+        // After trim: combo rows go to FewestChangesCombination; candidates = 5 pipeline rows.
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 111, Name = "TrimCountApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
         await context.SaveChangesAsync();
@@ -1279,18 +1516,20 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.NotNull(result.FewestChangesCombination);
-        var comboCount = result.FewestChangesCombination.RowCount;
-        Assert.Equal(comboCount + 5, result.Candidates.Count);
+        Assert.Equal(5, result.Candidates.Count);
     }
 
-    // Cycle 4 — every InFewestChangesCombination row survives trimming
+    // Cycle 4 — combo rows appear in FewestChangesCombination.MappingChanges, not in Candidates
     [Fact]
-    public async Task GetDonorCandidates_Trimming_AllFewestChangesRowsPreserved()
+    public async Task GetDonorCandidates_Trimming_ComboRowsInMappingChangesNotInCandidates()
     {
-        // 2 combo rows close the gap; 6 extras are trimmed at the buffer boundary.
-        // All rows with InFewestChangesCombination == true must still appear.
+        // 2 combo rows close the gap; 6 extras are the pipeline buffer.
+        // Combo rows must appear in MappingChanges; Candidates must not contain them.
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 112, Name = "TrimPreserveApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
+        // Custom PaddingApp (recommended=9999) pads each resource to 100% → no idle rows
+        context.Applications.Add(new Application { Id = 998, Name = "_PadPE", MinSupportFte = 0, RecommendedSupportFte = 9999 });
+        context.Activities.Add(new Activity { Id = 997, Name = "_PadPE - Support", ActivityType = "Support", ApplicationId = 998, Division = "Platform Engineering" });
         await context.SaveChangesAsync();
 
         var combo1 = MakePeResource("TR32D001", "Preserve Combo1");
@@ -1301,10 +1540,15 @@ public class DataServiceTests
         context.Resources.AddRange(extras);
         await context.SaveChangesAsync();
 
-        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
-        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7, Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 7,   Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo1.Id, ActivityId = 997, Month = "2026-05", Percent = 40 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 7,   Month = "2026-05", Percent = 60 });
+        context.Mappings.Add(new Mapping { ResourceId = combo2.Id, ActivityId = 997, Month = "2026-05", Percent = 40 });
         foreach (var e in extras)
-            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        {
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 7,   Month = "2026-05", Percent = 10 });
+            context.Mappings.Add(new Mapping { ResourceId = e.Id, ActivityId = 997, Month = "2026-05", Percent = 90 });
+        }
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -1312,10 +1556,11 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.NotNull(result.FewestChangesCombination);
-        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
-        Assert.Equal(result.FewestChangesCombination.RowCount, comboRows.Count);
-        Assert.Contains(result.Candidates, c => c.ResourceName == "Preserve Combo1" && c.InFewestChangesCombination);
-        Assert.Contains(result.Candidates, c => c.ResourceName == "Preserve Combo2" && c.InFewestChangesCombination);
+        var mappingChanges = result.FewestChangesCombination.MappingChanges;
+        Assert.Equal(result.FewestChangesCombination.RowCount, mappingChanges.Count);
+        Assert.Contains(mappingChanges, s => s.Contains("Preserve Combo1"));
+        Assert.Contains(mappingChanges, s => s.Contains("Preserve Combo2"));
+        Assert.DoesNotContain(result.Candidates, c => c.ResourceName is "Preserve Combo1" or "Preserve Combo2");
     }
 
     // Cycle 5 — no fewest-changes path: returns top DonorCandidateBufferRows * 2 (10) rows
@@ -1327,11 +1572,18 @@ public class DataServiceTests
         // candidates.Count must be 10, TotalAvailableCandidatesCount must be 12.
         // No row has InFewestChangesCombination == true.
         await using var context = CreateContext();
+        // Custom PaddingApp (recommended=9999) pads each donor to 100% → no idle rows
+        context.Applications.Add(new Application { Id = 998, Name = "_PadPE", MinSupportFte = 0, RecommendedSupportFte = 9999 });
+        context.Activities.Add(new Activity { Id = 997, Name = "_PadPE - Support", ActivityType = "Support", ApplicationId = 998, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
         var donors = Enumerable.Range(1, 12).Select(i => MakePeResource($"TR32E{i:000}", $"NFC Donor {i}")).ToList();
         context.Resources.AddRange(donors);
         await context.SaveChangesAsync();
         foreach (var d in donors)
-            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        {
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 7,   Month = "2026-05", Percent = 10 });
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 997, Month = "2026-05", Percent = 90 });
+        }
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -1352,11 +1604,18 @@ public class DataServiceTests
         // Total = 3 < DonorCandidateBufferRows * 2 (10) → no trimming.
         // candidates.Count must equal TotalAvailableCandidatesCount.
         await using var context = CreateContext();
+        // Custom PaddingApp (recommended=9999) pads each donor to 100% → no idle rows
+        context.Applications.Add(new Application { Id = 998, Name = "_PadPE", MinSupportFte = 0, RecommendedSupportFte = 9999 });
+        context.Activities.Add(new Activity { Id = 997, Name = "_PadPE - Support", ActivityType = "Support", ApplicationId = 998, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
         var donors = Enumerable.Range(1, 3).Select(i => MakePeResource($"TR32A{i:000}", $"Small Donor {i}")).ToList();
         context.Resources.AddRange(donors);
         await context.SaveChangesAsync();
         foreach (var d in donors)
-            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 7, Month = "2026-05", Percent = 10 });
+        {
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 7,   Month = "2026-05", Percent = 10 });
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 997, Month = "2026-05", Percent = 90 });
+        }
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -1365,6 +1624,245 @@ public class DataServiceTests
         Assert.NotNull(result);
         Assert.Equal(result.TotalAvailableCandidatesCount, result.Candidates.Count);
         Assert.Equal(3, result.TotalAvailableCandidatesCount);
+    }
+
+    // ── Issue #34: pre-rendered SummaryParagraph ─────────────────────────────
+
+    // Cycle 1 (tracer) — paragraph contains RowCount and DistinctResourceCount as substrings
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_ContainsHeadlineCounts()
+    {
+        // 2 donors at 100% Minor Changes (Activity 35) close a 1.5 FTE gap on LRTestApp
+        // RowCount=2, DistinctResourceCount=2 → both must appear in the paragraph
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donorA = MakePeResource("SP34A001", "SP Donor A");
+        var donorB = MakePeResource("SP34A002", "SP Donor B");
+        context.Resources.AddRange(donorA, donorB);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        Assert.Contains(result.FewestChangesCombination.RowCount.ToString(), para);
+        Assert.Contains(result.FewestChangesCombination.DistinctResourceCount.ToString(), para);
+    }
+
+    // Cycle 2 — FTE formatted to one decimal place
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_FtePrecisionOneDecimal()
+    {
+        // 2 donors at 100% Minor Changes close a 1.5 FTE gap → TotalFte = 1.5 → "1.5 FTE"
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donorA = MakePeResource("SP34B001", "FTE Donor A");
+        var donorB = MakePeResource("SP34B002", "FTE Donor B");
+        context.Resources.AddRange(donorA, donorB);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 50 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        var expectedFte = result.FewestChangesCombination.TotalFte.ToString("F1");
+        Assert.Contains(expectedFte + " FTE", para);
+    }
+
+    // Cycle 3 — monthly cost rounded to nearest $1k with k suffix
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_CostRoundedToNearestK()
+    {
+        // MakePeResource uses MonthlyRate = 9000. 1 donor at 100% Minor Changes closes a 0.9 FTE gap.
+        // ImpliedMonthlyCost = 9000 * 100% = 9000 → rounds to $9k/month
+        await using var context = CreateContext();
+        // MinSupportFte = 0.9 → gap = 0.9 FTE → 1 donor at 100% (1.0 FTE) closes it
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 0.9, RecommendedSupportFte = 0.0 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donor = MakePeResource("SP34C001", "Cost Donor");
+        context.Resources.Add(donor);
+        await context.SaveChangesAsync();
+        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        var costK = (int)Math.Round(result.FewestChangesCombination.TotalMonthlyCost / 1000m);
+        Assert.Contains($"${costK}k/month", para);
+    }
+
+    // Cycle 4 — single-tier solution names tier, does not use "Tiers" plural
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_SingleTierLabel()
+    {
+        // 2 donors at 100% Minor Changes (Activity 35, Tier 3, same div)
+        // → all combo rows in Tier 3 → "all Tier 3" should appear, "Tiers 3–" should not
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donorA = MakePeResource("SP34D001", "T2 Single A");
+        var donorB = MakePeResource("SP34D002", "T2 Single B");
+        context.Resources.AddRange(donorA, donorB);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        Assert.Contains("all Tier 3", para);
+        Assert.DoesNotContain("Tiers 3", para);
+    }
+
+    // Cycle 5 — multi-tier solution names the range
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_MultiTierRange()
+    {
+        // 2 PE donors at 100% on BigSurplusApp (recommended=0) → 2.0 FTE Tier-2 surplus Support
+        // 2 PE donors at 100% Minor Changes (Activity 35) → 2.0 FTE Tier-3
+        // AuthService gap = 4.0 FTE → all 4 rows needed; combo spans Tiers 2–3
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 100, Name = "BigSurplusApp", MinSupportFte = 0.0, RecommendedSupportFte = 0.0 });
+        context.Activities.Add(new Activity { Id = 200, Name = "BigSurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var t1a = MakePeResource("SP34E001", "MT Tier1 A");
+        var t1b = MakePeResource("SP34E002", "MT Tier1 B");
+        var t2a = MakePeResource("SP34E003", "MT Tier2 A");
+        var t2b = MakePeResource("SP34E004", "MT Tier2 B");
+        context.Resources.AddRange(t1a, t1b, t2a, t2b);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = t1a.Id, ActivityId = 200, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = t1b.Id, ActivityId = 200, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = t2a.Id, ActivityId = 35,  Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = t2b.Id, ActivityId = 35,  Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        Assert.Contains("Tiers 2", para);
+        Assert.Contains("3", para);
+    }
+
+    // Cycle 6 — surplus exhaustion clause appears when tier-1 FTE == SurplusSupportFteAvailable
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_SurplusExhaustionClause()
+    {
+        // 4 PE donors at 100% on BigSurplusApp (recommended=0) → surplus = 4.0 FTE
+        // AuthService gap = 4.0 FTE → fewest changes consumes all surplus
+        // SurplusSupportFteAvailable = 4.0 and Tier-2 FTE = 4.0 → "exhausts" must appear
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 100, Name = "BigSurplusApp", MinSupportFte = 0.0, RecommendedSupportFte = 0.0 });
+        context.Activities.Add(new Activity { Id = 200, Name = "BigSurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donors = Enumerable.Range(1, 4).Select(i => MakePeResource($"SP34F{i:000}", $"Exhaust Donor {i}")).ToList();
+        context.Resources.AddRange(donors);
+        await context.SaveChangesAsync();
+        foreach (var d in donors)
+            context.Mappings.Add(new Mapping { ResourceId = d.Id, ActivityId = 200, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        Assert.Contains("exhausts", para);
+    }
+
+    // Cycle 7 — no exhaustion clause when surplus is not fully consumed
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_NoExhaustionClause_WhenSurplusPartial()
+    {
+        // Tier-3-only solution (Minor Changes): no Tier-2 surplus rows → exhaustion clause must not appear
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donorA = MakePeResource("SP34G001", "NoExhaust A");
+        var donorB = MakePeResource("SP34G002", "NoExhaust B");
+        context.Resources.AddRange(donorA, donorB);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        Assert.DoesNotContain("exhausts", para);
+    }
+
+    // Cycle 8 — tier explanation is always present and names the target application
+    [Fact]
+    public async Task GetDonorCandidates_SummaryParagraph_TierExplanationAlwaysPresent()
+    {
+        // Any fewest-changes solution must include the tier-system explanation naming the target app
+        await using var context = CreateContext();
+        // MinSupportFte = 0.9 → gap = 0.9 FTE → 1 donor at 100% (1.0 FTE) closes it
+        context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 0.9, RecommendedSupportFte = 0.0 });
+        context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donor = MakePeResource("SP34H001", "TierExp Donor");
+        context.Resources.Add(donor);
+        await context.SaveChangesAsync();
+        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(101, null, "2026-05");
+
+        Assert.NotNull(result.FewestChangesCombination);
+        var para = result.FewestChangesCombination.SummaryParagraph;
+        Assert.NotNull(para);
+        Assert.Contains("Tier system:", para);
+        Assert.Contains("LRTestApp", para);
+        Assert.Contains("tiers 5", para);
+        Assert.Contains("cross-divisional alignment", para);
     }
 
     // ── Issue #33: pre-rendered MappingChanges list ──────────────────────────
@@ -1412,10 +1910,12 @@ public class DataServiceTests
         var donorB = MakePeResource("MC33B002", "Order Donor B");
         context.Resources.AddRange(donorA, donorB);
         await context.SaveChangesAsync();
-        // Activity 35 = SurveyEngine - Minor Changes (PE, tier-2); donorA at 100% sorts first (larger FTE)
+        // Activity 35 = SurveyEngine - Minor Changes (PE); donorA at 100% sorts first (larger FTE)
+        // Activity 6 = ObsStack Support pads donorB to 100% → no idle FTE from donorB
         context.Mappings.AddRange(
             new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
-            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 80 });
+            new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 80 },
+            new Mapping { ResourceId = donorB.Id, ActivityId = 6,  Month = "2026-05", Percent = 20 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -1423,10 +1923,11 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.NotNull(result.FewestChangesCombination);
-        var comboRows = result.Candidates.Where(c => c.InFewestChangesCombination).ToList();
-        Assert.Equal(2, comboRows.Count);
-        for (var i = 0; i < comboRows.Count; i++)
-            Assert.Contains(comboRows[i].ResourceName, result.FewestChangesCombination.MappingChanges[i]);
+        var changes = result.FewestChangesCombination.MappingChanges;
+        Assert.Equal(2, changes.Count);
+        // Order Donor A (100% FTE) sorts first, Order Donor B (80% FTE) second
+        Assert.Contains("Order Donor A", changes[0]);
+        Assert.Contains("Order Donor B", changes[1]);
     }
 
     // Cycle 3 — Tier 1 sentence contains "reduce" and correct arithmetic

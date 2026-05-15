@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import ToolCallIndicator from './ToolCallIndicator';
 
-const DEFAULT_MONTH = '2026-05';
-
 const CHIPS = [
   'Why is AuthService at risk this month and where could we find the capacity to fix it?',
   'What unallocated resource cost does Data Collection carry this month?',
@@ -11,6 +9,7 @@ const CHIPS = [
 ];
 
 interface Props {
+  month: string;
   onClose?: () => void;
 }
 
@@ -91,7 +90,7 @@ function renderMarkdown(text: string) {
   return output;
 }
 
-export default function ChatPanel({ onClose }: Props) {
+export default function ChatPanel({ month, onClose }: Props) {
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [response, setResponse] = useState('');
@@ -111,7 +110,7 @@ export default function ChatPanel({ onClose }: Props) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: trimmed, month: DEFAULT_MONTH }),
+      body: JSON.stringify({ query: trimmed, month }),
     });
 
     if (!res.ok || !res.body) {

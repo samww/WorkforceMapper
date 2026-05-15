@@ -97,7 +97,8 @@ public record FewestChangesCombinationSummary(
     double TotalFte,
     decimal TotalMonthlyCost,
     double GapCoverageReachedPct,
-    List<string> MappingChanges
+    List<string> MappingChanges,
+    string? SummaryParagraph
 );
 
 public record DonorCandidatesResult(
@@ -108,8 +109,6 @@ public record DonorCandidatesResult(
     double MinSupportFte,
     double RecommendedSupportFte,
     double GapFte,
-    int UniqueResourceCount,
-    int TotalAllocationCount,
     List<DonorCandidateRow> Candidates,
     double SurplusSupportFteAvailable,
     FewestChangesCombinationSummary? FewestChangesCombination = null,

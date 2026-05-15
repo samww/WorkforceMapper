@@ -140,7 +140,7 @@ export default function App() {
         className={`flex-shrink-0 flex flex-col bg-gray-900 border-l border-gray-700 transition-all duration-300 overflow-hidden
           ${chatOpen ? 'w-[420px]' : 'w-0'}`}
       >
-        <ChatPanel onClose={() => setChatOpen(false)} />
+        <ChatPanel month={month} onClose={() => setChatOpen(false)} />
       </div>
     </div>
   );

@@ -36,40 +36,23 @@ Key facts about the data:
 
 - When asked where capacity could be found to address an under-resourced application, call
   get_donor_candidates. Pass application_name (e.g. "AuthService") — do not guess or invent
-  application_id values. The tool returns candidates in six-tier priority order: same-division
-  tiers 1–3 (surplus Support, Minor Changes, Project) come first; cross-divisional tiers 4–6
-  (surplus Support, Minor Changes, Project from other divisions) follow. Walk tiers in order —
-  exhaust same-division options (tiers 1–3) before presenting cross-divisional options (tiers 4–6).
-  When your response mentions tiers, briefly explain the tier system to the user: same-division
-  tiers 1–3 draw from surplus Support (tier 1), Minor Changes (tier 2), and Project (tier 3)
-  capacity within the same division as the under-resourced application; cross-divisional tiers 4–6
-  are the same three source types from other divisions.
-  Each row includes allocation_fte, gap_coverage_pct, cumulative_fte, and
-  cumulative_gap_coverage_pct. Each row also carries in_fewest_changes_combination (true for
-  every row that is part of the fewest-changes solution set — the minimum number of allocation
-  rows needed to close the gap, taking the largest-FTE candidates first within each tier).
-  The fewest-changes combination is the complete set of rows where in_fewest_changes_combination
-  is true — every row in that set is required and must be included in your recommendation. Do not
-  present the final row of the table in isolation as the recommended action; the recommendation
-  is the full set of rows where in_fewest_changes_combination is true.
-  Use fewest_changes_combination (pre-computed) for the totals: total_fte, total_monthly_cost,
-  distinct_resource_count, and row_count. Present fewest_changes_combination.distinct_resource_count
-  as the number of distinct people involved and fewest_changes_combination.total_monthly_cost
-  as the total cost of the recommendation — do not sum or count the candidates list yourself.
-  Render fewest_changes_combination.mapping_changes verbatim as a bulleted list — one bullet
-  per entry, in the order returned. Do not paraphrase, re-order, or omit entries. The sentences
-  already contain the tier-specific source-change clauses (reduce / remove) and the
-  cross-divisional warning where applicable.
-  Use surplus_support_fte_available (pre-computed) when stating how much surplus support capacity
-  exists in the same division — do not derive it from the candidates list.
+  application_id values. The tool returns candidates in eight-tier priority order: same-division
+  tiers 1–4 (idle capacity, surplus Support, Minor Changes, Project) come first; cross-divisional
+  tiers 5–8 (the same source types from other divisions) follow. Walk tiers in order — exhaust
+  same-division options (tiers 1–4) before presenting cross-divisional options (tiers 5–8).
+  Idle capacity (tiers 1 and 5) is the cheapest source because it does not displace any other work.
+  Each row includes allocation_fte, gap_coverage_pct, cumulative_fte, cumulative_gap_coverage_pct,
+  and in_fewest_changes_combination.
+  The fewest-changes combination is the complete pre-computed solution — do not present the
+  final row of the table in isolation as the recommended action. Render
+  fewest_changes_combination.summary_paragraph verbatim as the response headline,
+  followed by the fewest_changes_combination.mapping_changes bulleted list. Do not recompute
+  counts, totals, or the tier-system description — they are baked into the paragraph.
   For every candidate row where requires_cross_divisional_alignment is true, surface an explicit
   warning that the transfer requires cross-divisional sign-off before acting.
-  Use unique_resource_count (pre-computed) for the count of distinct donor resources and
-  total_allocation_count for the number of allocation rows — do not count the list yourself.
-  The candidates list is trimmed to the fewest-changes rows plus a small buffer; use
+  The candidates list contains pipeline rows beyond the fewest-changes solution; use
   total_available_candidates_count (pre-computed) when stating how many candidates were
-  considered (e.g. "11 changes chosen from 87 candidates considered") — do not count the
-  list itself to determine pool size.
+  considered — do not count the candidates list to determine pool size.
   Do not compose donor candidates manually from get_activity_allocations calls.
 
 - When asked which division is most constrained on capacity, use get_capacity_by_division.

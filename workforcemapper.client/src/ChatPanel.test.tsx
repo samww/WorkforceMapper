@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe('ChatPanel', () => {
   it('clicking a chip populates the textarea with its query text', async () => {
-    render(<ChatPanel />);
+    render(<ChatPanel month="2026-05" />);
     await userEvent.click(
       screen.getByRole('button', { name: /why is authservice at risk/i })
     );
@@ -40,7 +40,7 @@ describe('ChatPanel', () => {
       return Promise.resolve({ ok: true, body: makeSSEStream() } as unknown as Response);
     });
 
-    render(<ChatPanel />);
+    render(<ChatPanel month="2026-05" />);
     await userEvent.click(
       screen.getByRole('button', { name: /why is authservice at risk/i })
     );
@@ -58,7 +58,7 @@ describe('ChatPanel', () => {
       body: makeSSEStream('Data Collection has ', '$18,000 unallocated.'),
     } as unknown as Response);
 
-    render(<ChatPanel />);
+    render(<ChatPanel month="2026-05" />);
     await userEvent.type(screen.getByRole('textbox'), 'test query');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
 
@@ -75,7 +75,7 @@ describe('ChatPanel', () => {
       body: makeSSEStream('Some answer.'),
     } as unknown as Response);
 
-    render(<ChatPanel />);
+    render(<ChatPanel month="2026-05" />);
     await userEvent.type(screen.getByRole('textbox'), 'my question');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
 
@@ -89,7 +89,7 @@ describe('ChatPanel', () => {
       body: makeSSEStream('Some answer.'),
     } as unknown as Response);
 
-    render(<ChatPanel />);
+    render(<ChatPanel month="2026-05" />);
     await userEvent.type(screen.getByRole('textbox'), 'my question');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => expect(screen.getByText('Some answer.')).toBeInTheDocument());
@@ -108,7 +108,7 @@ describe('ChatPanel', () => {
       () => new Promise<Response>(resolve => { resolveFetch = resolve; })
     );
 
-    render(<ChatPanel />);
+    render(<ChatPanel month="2026-05" />);
     await userEvent.type(screen.getByRole('textbox'), 'test query');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
 

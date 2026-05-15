@@ -49,17 +49,21 @@ Cost attribution is unchanged by the risk model. Risk uses transitive `applicati
 
 ## Donor candidate tiers (for chat narrative — returned by `get_donor_candidates`)
 
-Active resources who could be shifted onto an under-resourced application's Support activity. Returned in six-tier priority order. Within each tier, sorted by `cost_per_fte` ascending. Cumulative FTE and `cumulative_gap_coverage_pct` accumulate across all tiers.
+Active resources whose capacity could be shifted onto an under-resourced application's Support activity. Returned in eight-tier priority order. Within each tier, sorted by `AllocationFte` descending. Cumulative FTE and `cumulative_gap_coverage_pct` accumulate across all tiers.
 
 | Tier | Source | Division | `requires_cross_divisional_alignment` |
 |---|---|---|---|
-| 1 | Support mappings where `coverage > recommended_support_fte` (surplus FTE only) | Same as target app | false |
-| 2 | All Minor Changes mappings | Same as target app | false |
-| 3 | All Project mappings | Same as target app | false |
-| 4 | Support surplus as tier 1 | Other divisions | true |
-| 5 | All Minor Changes mappings | Other divisions | true |
-| 6 | All Project mappings | Other divisions | true |
+| 1 | Idle FTE: active resources where `100 - sum(percent) > 0` for the month | Same as target app | false |
+| 2 | Support mappings where `coverage > recommended_support_fte` (surplus FTE only) | Same as target app | false |
+| 3 | All Minor Changes mappings | Same as target app | false |
+| 4 | All Project mappings | Same as target app | false |
+| 5 | Idle FTE: active resources where `100 - sum(percent) > 0` for the month | Other divisions | true |
+| 6 | Support mappings where `coverage > recommended_support_fte` (surplus FTE only) | Other divisions | true |
+| 7 | All Minor Changes mappings | Other divisions | true |
+| 8 | All Project mappings | Other divisions | true |
 
-Exclusion rule: a resource already mapped to the target application's Support activity must not appear in any tier.
+Exclusion rule: a resource already mapped to the target application's Support activity must not appear in any tier (including the idle tier).
 
-Surplus support FTE for a donor application = `max(0, current_coverage_fte - recommended_support_fte)`. An application at exactly `recommended_support_fte` contributes zero surplus and yields no tier-1/4 candidates.
+Idle FTE for a resource in a month = `100 - sum(percent for the resource in the month)`, percentage points. Resources with zero mappings in the month still appear if the month flag is 1. `AllocationFte` on the row is `idle_pp / 100`; `ImpliedMonthlyCost` is `MonthlyRate * AllocationFte`; the row's `Percent` field carries the resource's current total allocation (used to render "currently X% allocated" in the mapping-change string), not a source-mapping percent. `ActivityType` is `"Idle"` and `ActivityName` is `"Idle capacity"`.
+
+Surplus support FTE for a donor application = `max(0, current_coverage_fte - recommended_support_fte)`. An application at exactly `recommended_support_fte` contributes zero surplus and yields no tier-2/6 candidates.

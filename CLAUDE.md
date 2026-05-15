@@ -4,14 +4,14 @@
 
 Read `CONTEXT.md` at the repo root before writing any code. It covers the domain model, glossary, API contracts, key constraints, and tech stack.
 
-Active iteration: **#30–#34**. Done: #2–#23, #26, #27, #29, #31, #32, #33. Open: #30, #34 (agent tool-quality follow-ups; see `docs/temp/agent-response-feedback.md`).
+Active iteration: **#30–#35**. Done: #2–#23, #26, #27, #29, #31, #32, #33, #35. Open: #30, #34 (agent tool-quality follow-ups; see `docs/temp/agent-response-feedback.md`).
 
 Only read deeper docs when directly relevant to the issue being worked on:
 
 | Issue | Spec | Blocked by |
 |---|---|---|
 | All done issues | `docs/build/issue-N-*.md` — read only when maintaining existing code | — |
-| #30 Agent surface: six-tier donor prompt | `docs/build/issue-30-agent-donor-prompt.md` | — |
+| #30 Agent surface: eight-tier donor prompt | `docs/build/issue-30-agent-donor-prompt.md` | — |
 | #34 Pre-rendered `summary_paragraph` | `docs/build/issue-34-summary-paragraph.md` | — |
 
 Additional docs (only when needed):
