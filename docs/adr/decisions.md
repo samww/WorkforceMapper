@@ -104,3 +104,27 @@
 - The frontend enforces integers at the input layer: `type="text"` with `inputMode="numeric"`, `onChange` strips non-digit characters, `parseInt` on submit.
 - Seed data must be regenerated from scratch using a largest-remainder integer distribution; do not patch existing fractional rows.
 - The `data/mappings.json` invariant is unchanged: every active resource's monthly total is exactly 100%.
+
+---
+
+## ADR 9: MonthlyAllocationSnapshot is the canonical mapping-state primitive
+
+**Decision:** A `MonthlyAllocationSnapshot` module owns per-month-state arithmetic for the seven tool methods. Each tool calls `await MonthlyAllocationSnapshot.LoadAsync(context, month)` at the top of its body, then projects from the snapshot's `ActiveResources`, `ActiveMappings`, and `SupportCoverageOf(applicationId)`. New tool methods consume the snapshot rather than re-querying.
+
+The snapshot owns: the active-flag rule (resources contribute only when their month flag = 1), the cost rule (`monthly_rate × percent / 100`), per-resource allocation percent and idle FTE, per-mapping allocated cost, and capacity coverage per application. The snapshot does **not** own risk classification (`RiskCalculator`), dependency closures (`DependencyGraph`), max-wins risk aggregation (`RiskCalculator.AggregateProductRisk`), donor-tier orchestration, or product/project cost attribution.
+
+**Why:** `DataService` re-derives the same arithmetic in seven tool methods today. The deletion test on the snapshot passes — removing it scatters the same arithmetic back across seven methods. A shared primitive prevents drift (e.g. the integer-division bug fixed in #36 was possible because the per-division and overall paths each had their own cast of `m.Percent`).
+
+**Alternatives considered and rejected:**
+- **Snapshot exposes raw mappings only; coverage lives in `RiskCalculator`.** Fails the locality argument that motivated the proposal — the same Support-filter sum gets re-implemented in donor target-gap and donor surplus-Support calculations. Capacity coverage is a load-bearing primitive needed by three independent consumers; one definition or zero.
+- **Snapshot owns risk classification too.** Conflates per-month state (mappings + active flags) with per-application policy (`MinSupportFte`, `RecommendedSupportFte`). Risk thresholds change with ADR amendments; mapping state changes with seed regeneration. Different change vectors, different modules.
+- **Per-request scoped `ISnapshotProvider` with caching.** Adds DI plumbing whose only value is amortising duplicate loads inside a single chat turn. With ~3,144 mapping rows on local SQLite, duplicate loads are sub-millisecond. The wrapper today fails its own deletion test. Add only if a profile shows hot-spot pain.
+- **Bare entity references on the snapshot (`IReadOnlyList<Resource>`, `IReadOnlyList<Mapping>`).** Forces every consumer to recompute `AllocationPercent`, `AllocatedCost`, `IdleFte` from raw fields. The whole point was to stop scattering that arithmetic.
+- **Bundle the Group D split with this extraction.** The split-DataService-into-domain-reporters question (`ProductCostAttribution`, `ApplicationRiskReporter`, `ProductRiskReporter`, `DonorCandidateAlgorithm`) is real but separable. Splitting before extraction means guessing at boundaries; splitting after means the boundaries are visible because each method has shrunk. Tracked as a follow-on candidate, not bundled here.
+
+**Key constraints:**
+- The snapshot is the single source of truth for `capacity coverage`, `allocation_pct`, idle FTE, and per-resource / per-mapping cost. New tool methods that re-implement these must instead consume the snapshot.
+- `Resource.IsActiveIn(month)` is the single source of truth for the active-flag rule. `DataService.GetMonthFlag` is a duplicate scheduled for removal during the migration.
+- The public constructor `MonthlyAllocationSnapshot(month, activeResources, activeMappings)` is the test seam — snapshot tests build snapshots without a `DbContext`.
+- Migration proceeds in five slices: `GetCapacityByDivisionAsync` first (validation), then the small projection trio, then `GetApplicationsAsync` (validates `SupportCoverageOf`), then `GetCostByProductAsync`, then `GetDonorCandidatesAsync`. See `docs/build/monthly-allocation-snapshot.md`.
+- The `WebApplicationFactory` integration tests remain the regression net. Existing `DataServiceTests` continue to pass; their consolidation onto snapshot tests is a cleanup, not a slice gate.
