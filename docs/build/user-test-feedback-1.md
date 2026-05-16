@@ -11,26 +11,19 @@ Four feature items scoped from a user-test session. Independent slices — can s
 
 ---
 
-## 1. Ask AI button — persistent placement
+## 1. Ask AI button — persistent placement ✓ shipped (#45)
 
-Move the button out of each tab view's header into the persistent tab nav row.
+Moved the button out of each tab view's header into the persistent tab nav row.
 
-### Change
+### What shipped
 
 In `App.tsx`:
-- Inside the `<nav>` at line 34, right-align an Ask AI button next to the tab buttons.
-- The button toggles the chat panel: `onClick={() => setChatOpen(o => !o)}`. Always visible — does not hide when the chat is open.
-- Label stays `"Ask AI"`. Style consistent with the existing buttons in `MappingView.tsx:82-89` (`bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium`).
+- Inside the `<nav>`, right-aligned Ask AI button (`ml-auto`). Hidden while the chat panel is open (`{!chatOpen && …}`); `onClick={() => setChatOpen(true)}`. Close panel via the X button inside it.
+- `onOpenChat` prop removed from all three `MappingView`, `ApplicationsView`, `ProductsView` callsites.
 
 In `MappingView.tsx`, `ApplicationsView.tsx`, `ProductsView.tsx`:
-- Delete the per-view Ask AI button blocks (`MappingView.tsx:82-89`, `ApplicationsView.tsx:98-105`, `ProductsView.tsx:75-83`).
-- Drop the `onOpenChat` prop from each component's props interface.
-- Remove the `onOpenChat` prop passed at `App.tsx:80,83,110`.
-
-### Out of scope
-
-- No changes to the chat panel internals or streaming logic.
-- No keyboard shortcut for the button.
+- Per-view Ask AI button blocks deleted.
+- `onOpenChat` prop removed from each component's props interface.
 
 ---
 

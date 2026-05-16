@@ -11,10 +11,9 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 interface MappingViewProps {
   month: string;
   division: string;
-  onOpenChat?: () => void;
 }
 
-export default function MappingView({ month, division, onOpenChat }: MappingViewProps) {
+export default function MappingView({ month, division }: MappingViewProps) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,14 +78,6 @@ export default function MappingView({ month, division, onOpenChat }: MappingView
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Workforce Mapper</h1>
-          {onOpenChat && (
-            <button
-              onClick={onOpenChat}
-              className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium"
-            >
-              Ask AI
-            </button>
-          )}
         </div>
 
         <div className="flex flex-wrap gap-4 mb-6 items-center">

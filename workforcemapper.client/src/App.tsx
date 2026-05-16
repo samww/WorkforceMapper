@@ -31,7 +31,7 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden">
       <div className="flex-1 overflow-auto min-w-0 flex flex-col">
-        <nav className="flex gap-1 px-4 pt-4 pb-0 border-b border-gray-700">
+        <nav className="flex gap-1 px-4 pt-4 pb-0 border-b border-gray-700 items-center">
           {(['mappings', 'applications', 'products'] as Tab[]).map(t => (
             <button
               key={t}
@@ -42,6 +42,14 @@ export default function App() {
               {t}
             </button>
           ))}
+          {!chatOpen && (
+            <button
+              onClick={() => setChatOpen(true)}
+              className="ml-auto mb-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium"
+            >
+              Ask AI
+            </button>
+          )}
         </nav>
 
         <div className="flex flex-wrap gap-4 px-4 py-2 border-b border-gray-800 items-center bg-gray-900">
@@ -77,10 +85,10 @@ export default function App() {
 
         <div className="flex-1 overflow-auto">
           {tab === 'mappings' && (
-            <MappingView month={month} division={division} onOpenChat={chatOpen ? undefined : () => setChatOpen(true)} />
+            <MappingView month={month} division={division} />
           )}
           {tab === 'applications' && !selectedApp && (
-            <ApplicationsView month={month} division={division} onSelectApp={setSelectedApp} onOpenChat={chatOpen ? undefined : () => setChatOpen(true)} />
+            <ApplicationsView month={month} division={division} onSelectApp={setSelectedApp} />
           )}
           {tab === 'applications' && selectedApp && (
             <ApplicationDetail
@@ -107,7 +115,7 @@ export default function App() {
             />
           )}
           {tab === 'products' && !selectedProduct && (
-            <ProductsView month={month} division={division} onSelectProduct={setSelectedProduct} onOpenChat={chatOpen ? undefined : () => setChatOpen(true)} />
+            <ProductsView month={month} division={division} onSelectProduct={setSelectedProduct} />
           )}
           {tab === 'products' && selectedProduct && (
             <ProductDetail
