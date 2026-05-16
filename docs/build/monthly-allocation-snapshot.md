@@ -95,13 +95,13 @@ Work proceeds in five slices. Slice 1 validates the interface; slices 2–5 are 
 | 2 | `GetActivityAllocationsAsync`, `GetUnallocatedResourcesAsync`, `GetOverallocatedResourcesAsync` | `ActiveMappings` per-mapping access; reuse of the projection pattern across three small methods. | **Done (#38)** |
 | 3 | `GetApplicationsAsync` | First real exercise of `SupportCoverageOf`. Bigger because it also touches the dependency graph (which stays in DataService for now). If the snapshot interface has gaps, this slice surfaces them. | **Done (#39)** |
 | 4 | `GetCostByProductAsync` | Per-mapping `AllocatedCost` across product/project graph navigation. | **Done (#40)** |
-| 5 | `GetDonorCandidatesAsync` | The 8-tier orchestration consumes the snapshot. Largest method, most moving parts; left for last so the snapshot is battle-tested when this lands. | Open |
+| 5 | `GetDonorCandidatesAsync` | The 8-tier orchestration consumes the snapshot. Largest method, most moving parts; left for last so the snapshot is battle-tested when this lands. | **Done (#41)** |
 
 Each slice is a single PR. Acceptance criteria forbid regressions in existing tests and require new snapshot-level tests where the slice introduces a new primitive.
 
 ## Resource.IsActiveIn(month)
 
-Already present on `Resource` (`Resource.cs:29-44`, returns `bool`). `DataService.GetMonthFlag` duplicates it. Every slice must replace its own `GetMonthFlag` call sites with `r.IsActiveIn(month)`; slice 5 (or whichever slice removes the last call site) deletes `GetMonthFlag` entirely.
+`Resource.IsActiveIn(month)` (`Resource.cs:29-44`, returns `bool`) is the single source of truth for the active-flag rule. `DataService.GetMonthFlag` was a duplicate and has been deleted (removed in slice 5, #41).
 
 ## Test strategy
 
