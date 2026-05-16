@@ -28,7 +28,7 @@ Pragmenta Insights workforce capacity tool. Resources (employees, contractors, v
 | **ActiveResource** | Per-month projection of a `Resource` constructed by `MonthlyAllocationSnapshot`. Bundles `Resource`, `AllocationPercent` (sum of mapping percent), `AllocatedCost`, `IdleCost`, `IdleFte`. Field-baked — callers read derived values, never recompute. |
 | **ActiveMapping** | Per-month projection of a `Mapping` constructed by `MonthlyAllocationSnapshot`. Bundles `Resource`, `Activity` (both eagerly loaded), `Percent`, `AllocatedCost`. Carries the per-row cost so consumers do not multiply rate × percent themselves. |
 | **SupportCoverageOf(applicationId)** | `MonthlyAllocationSnapshot` method returning an application's `capacity coverage`. The single definition; consumed by `RiskCalculator.ClassifyApplication`, donor target-gap calculation (`min - coverage`), and donor surplus-Support calculation (`coverage - recommended`). |
-| **Resource.IsActiveIn(month)** | Instance method on `Resource` that resolves the per-month active flag. The single source of truth for "active flag gates cost"; `DataService.GetMonthFlag` is a duplicate scheduled for removal. |
+| **Resource.IsActiveIn(month)** | Instance method on `Resource` that resolves the per-month active flag. The single source of truth for "active flag gates cost". |
 
 ---
 

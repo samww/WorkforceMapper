@@ -33,16 +33,6 @@ Product risk = max risk over the transitive closure of:
 
 Aggregation rule: max-wins. Any high-risk app in the closure makes the product high risk. Order: high > medium > low. No alternative aggregation rules in scope.
 
-## Dependency graph
-
-In-memory BFS over a snapshot of `application_dependencies`. Built once per request from a snapshot, not cached across requests.
-
-Methods:
-- `TransitiveDependenciesOf(appId) -> set<appId>` — every app reachable via depends-on edges; excludes the seed.
-- `ProductsAffectedByApp(appId) -> set<productId>` — every product whose closure includes `appId`.
-
-Cycle handling: visited-set termination. Cycles must not infinite-loop.
-
 ## Cost attribution boundary
 
 Cost attribution is unchanged by the risk model. Risk uses transitive `application_dependencies`; cost uses direct `product_applications` only. The Unattributed line in `get_cost_by_product` continues to capture support cost for foundational apps that no product directly lists.

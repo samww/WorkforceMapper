@@ -43,18 +43,6 @@
 
 ---
 
-## ADR 5: Advisory-only allocation constraint
-
-**Status:** Superseded by ADR 6 (issue #13). The 100% allocation rule is now hard, API-enforced, with structured rejection codes for cap and inactive-month violations.
-
-**Decision:** 100% allocation rule is advisory only. `PUT /api/mappings` accepts any `percent` value. Violations surface in the UI (red over-allocation indicator, unallocated filter) and via NL query tools. No DB CHECK constraint, no API rejection.
-
-**Why:** Over-allocation is a valid operational state (Platform Engineering runs at ~112%). Enforcing a cap at API or DB level would prevent users from recording real-world conditions.
-
-**Key constraint:** The seeded `data/mappings.json` is the authoritative example: every active resource in `2026-05` sums to exactly 100%, with deliberate under-allocation for two India Analytics Associates (new hires, not yet mapped).
-
----
-
 ## ADR 6: Hard 100% allocation cap, API-enforced
 
 **Decision:** `PUT /api/mappings` and `DELETE /api/mappings` enforce a hard cap. Writes that push a resource above 100% in a given month are rejected with 400 + `would_exceed_cap`. Writes against a month in which the resource is inactive are rejected with 400 + `resource_inactive_in_month`.

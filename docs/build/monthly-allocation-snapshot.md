@@ -85,35 +85,10 @@ Per call: each tool method calls `await MonthlyAllocationSnapshot.LoadAsync(cont
 
 If chat-turn duplication (same month across multiple tool calls in one SSE response) ever shows up in a profile, layer a scoped `ISnapshotProvider` over `LoadAsync`. It's a 30-line addition with no architectural rework needed; do not add it speculatively.
 
-## Migration order
-
-Work proceeds in five slices. Slice 1 validates the interface; slices 2–5 are mechanical conversions.
-
-| Slice | Tool method | What it validates | Status |
-|---|---|---|---|
-| 1 | `GetCapacityByDivisionAsync` | The full `ActiveResource` view (`AllocationPercent`, `AllocatedCost`, `IdleCost`, `IdleFte`), the projection pattern, snapshot construction. | **Done (#37)** |
-| 2 | `GetActivityAllocationsAsync`, `GetUnallocatedResourcesAsync`, `GetOverallocatedResourcesAsync` | `ActiveMappings` per-mapping access; reuse of the projection pattern across three small methods. | **Done (#38)** |
-| 3 | `GetApplicationsAsync` | First real exercise of `SupportCoverageOf`. Bigger because it also touches the dependency graph (which stays in DataService for now). If the snapshot interface has gaps, this slice surfaces them. | **Done (#39)** |
-| 4 | `GetCostByProductAsync` | Per-mapping `AllocatedCost` across product/project graph navigation. | **Done (#40)** |
-| 5 | `GetDonorCandidatesAsync` | The 8-tier orchestration consumes the snapshot. Largest method, most moving parts; left for last so the snapshot is battle-tested when this lands. | **Done (#41)** |
-
-Each slice is a single PR. Acceptance criteria forbid regressions in existing tests and require new snapshot-level tests where the slice introduces a new primitive.
-
 ## Resource.IsActiveIn(month)
 
-`Resource.IsActiveIn(month)` (`Resource.cs:29-44`, returns `bool`) is the single source of truth for the active-flag rule. `DataService.GetMonthFlag` was a duplicate and has been deleted (removed in slice 5, #41).
+`Resource.IsActiveIn(month)` (`Resource.cs:29-44`, returns `bool`) is the single source of truth for the active-flag rule.
 
-## Test strategy
+## Test seam
 
-**Snapshot tests** — direct unit tests via the public ctor. Build 3-5 hand-written `Resource` and `Mapping` objects, construct a snapshot, assert primitives. Zero DbContext, zero seeded-ID knowledge. Slice 1 introduces this test file (`MonthlyAllocationSnapshotTests.cs`).
-
-**Tool-method tests** — existing `DataServiceTests` continue to use the in-memory DbContext and continue to pass unchanged. After all five slices, the `DataServiceTests` cases that exercise the same primitive twice (e.g. capacity arithmetic + activity-allocation arithmetic) can collapse onto the snapshot tests, but that cleanup is not required for any slice to land.
-
-**Integration tests** — `ApplicationsApiTests`, `ProductsApiTests`, `ResourceActivityApiTests`, `MappingApiTests` continue to use `WebApplicationFactory` end-to-end and continue to pass unchanged.
-
-## Out of scope
-
-- **Group D split.** Done in #42. `DataService` now delegates its four Group D methods to `ProductCostAttribution`, `ApplicationRiskReporter`, `ProductRiskReporter`, and `DonorCandidateAlgorithm`. The duplicated transitive-closure walk is unified in `ProductRiskReporter.BuildProductClosure` (internal static), called by both `ProductRiskReporter` and `ApplicationRiskReporter`.
-- **Move product-risk closure into `RiskCalculator`.** Resolved as part of #42 — the walk lives in `ProductRiskReporter.BuildProductClosure` rather than `RiskCalculator`, which is consistent with ADR 9 (closure is graph state, not risk policy).
-- **Per-request scoped `ISnapshotProvider`.** Premature without measurement. Add only if a profile shows duplicate loads as a hot spot.
-- **Replacing the `WebApplicationFactory` integration tests.** The seam at the HTTP layer remains; the snapshot is below it.
+Snapshot tests build snapshots directly via the public ctor with hand-written `Resource` and `Mapping` objects — no `DbContext`, no seeded-ID knowledge. See `MonthlyAllocationSnapshotTests.cs`. Tool-method tests use the in-memory DbContext (`DataServiceTests`). Integration tests use `WebApplicationFactory` end-to-end.
