@@ -113,7 +113,7 @@ Each slice is a single PR. Acceptance criteria forbid regressions in existing te
 
 ## Out of scope
 
-- **Group D split.** After all five slices, `DataService` keeps real work in four methods (`GetCostByProductAsync`, `GetApplicationsAsync`, `GetProductRiskAsync`, `GetDonorCandidatesAsync`) and three thin Group C projections plus reads/writes. These four methods may merit splitting into named modules (`ProductCostAttribution`, `ApplicationRiskReporter`, `ProductRiskReporter`, `DonorCandidateAlgorithm`). Tracked as a separate follow-on issue, not bundled here. Splitting is much easier to scope once the methods have shrunk.
-- **Move product-risk closure into `RiskCalculator`.** Currently the closure walk + max-wins is duplicated in `GetProductRiskAsync` and `GetApplicationsAsync`. After the snapshot lands, the closure walk is a one-liner over `closure.Select(snapshot.SupportCoverageOf).Select(c => RiskCalculator.ClassifyApplication(c, ...))`. Tracked as part of the Group D split.
+- **Group D split.** Done in #42. `DataService` now delegates its four Group D methods to `ProductCostAttribution`, `ApplicationRiskReporter`, `ProductRiskReporter`, and `DonorCandidateAlgorithm`. The duplicated transitive-closure walk is unified in `ProductRiskReporter.BuildProductClosure` (internal static), called by both `ProductRiskReporter` and `ApplicationRiskReporter`.
+- **Move product-risk closure into `RiskCalculator`.** Resolved as part of #42 — the walk lives in `ProductRiskReporter.BuildProductClosure` rather than `RiskCalculator`, which is consistent with ADR 9 (closure is graph state, not risk policy).
 - **Per-request scoped `ISnapshotProvider`.** Premature without measurement. Add only if a profile shows duplicate loads as a hot spot.
 - **Replacing the `WebApplicationFactory` integration tests.** The seam at the HTTP layer remains; the snapshot is below it.
