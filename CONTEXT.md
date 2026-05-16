@@ -17,6 +17,7 @@ Pragmenta Insights workforce capacity tool. Resources (employees, contractors, v
 | **Unattributed** | Mapped cost that cannot be traced to any product (e.g. AuthService support, ObservabilityStack, DevPortal Rebuild). Surfaced as an explicit line by `get_cost_by_product`. |
 | **support level** | Per-application thresholds `min_support_fte` and `recommended_support_fte` describing the demand on the engineering team to keep the application running. |
 | **capacity coverage** | Sum of `(mapping.percent / 100)` across active resources whose mapping targets an application's Support activity for a month. |
+| **project allocation** | Sum of `(mapping.percent / 100)` across active resources whose mapping targets any activity belonging to a project, for a month. Reported in FTE. Parallels [[capacity coverage]] but spans all of a project's activities (projects only have `activity_type = Project`). No minimum or recommended thresholds — projects are not risk-classified. |
 | **application risk** | High / medium / low classification of an application based on capacity coverage relative to its `min_support_fte` and `recommended_support_fte`. |
 | **product risk** | Max-wins aggregation of application risk over the transitive closure of (direct apps + their `application_dependencies`). |
 | **application dependency** | Directed `(application_id, depends_on_application_id)` edge in `application_dependencies`. Used for risk reach; not used for cost attribution. |

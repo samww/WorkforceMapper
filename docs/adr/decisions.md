@@ -116,3 +116,21 @@ The snapshot owns: the active-flag rule (resources contribute only when their mo
 - The public constructor `MonthlyAllocationSnapshot(month, activeResources, activeMappings)` is the test seam — snapshot tests build snapshots without a `DbContext`.
 - Migration proceeds in five slices: `GetCapacityByDivisionAsync` first (validation), then the small projection trio, then `GetApplicationsAsync` (validates `SupportCoverageOf`), then `GetCostByProductAsync`, then `GetDonorCandidatesAsync`. See `docs/build/monthly-allocation-snapshot.md`.
 - The `WebApplicationFactory` integration tests remain the regression net. Existing `DataServiceTests` continue to pass; their consolidation onto snapshot tests is a cleanup, not a slice gate.
+
+---
+
+## ADR 10: Projects are not risk-classified
+
+**Decision:** The Projects tab and the `get_project_allocation` tool report `project_allocation` (sum of `mapping.percent / 100` across active mappings to the project's activities, in FTE) and nothing else. Projects carry no `min_*_fte` / `recommended_*_fte` thresholds, no risk classification, and no badge. The AgentService system prompt explicitly forbids the LLM from describing a project as "under-resourced", "adequately staffed", or "at risk".
+
+**Why:** Application Support models steady-state operations (SLO/uptime-driven, ongoing) — capacity below `min_support_fte` is operationally dangerous in a way that's knowable from headcount alone. Projects model discretionary delivery work (deadline-driven, finite-duration) — whether a project is "adequately staffed" depends on its scope, target delivery date, and remaining work, none of which are in the data model. Importing the Application risk framing into Projects would force the tool to either invent thresholds or fabricate adequacy judgments the data cannot support.
+
+**Alternatives considered and rejected:**
+- **Per-project `target_fte` threshold + risk classification.** Would require schedule and scope data the model does not carry. The thresholds would have to be guessed or hand-curated and would rot as projects re-plan; that drift is worse than absence.
+- **Aggregate delivery-risk signal (e.g. "behind plan").** Same data gap. Without baseline and burndown, a derived signal would be cosmetic.
+- **Show projects in the Applications tab with a "Project" badge instead of a separate tab.** Conflates two distinct mental models (steady-state vs. delivery) under one risk vocabulary, which is exactly the failure mode this ADR exists to prevent.
+
+**Key constraints:**
+- `MonthlyAllocationSnapshot.ProjectAllocationOf(projectId)` is the single source of truth for project allocation; parallels `SupportCoverageOf` but spans all activity types of the project.
+- The Projects tab renders a fill-only allocation bar — no min/recommended markers, no risk badge, no risk-derived sort.
+- `get_project_allocation` system-prompt guidance must forbid adequacy/risk language explicitly. Every other tool has thresholds to lean on; without that explicit forbid, the LLM will pattern-match to the Application playbook.
