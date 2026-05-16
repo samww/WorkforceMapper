@@ -27,30 +27,26 @@ In `MappingView.tsx`, `ApplicationsView.tsx`, `ProductsView.tsx`:
 
 ---
 
-## 2. Applications tab — shared-scale coverage bars
+## 2. Applications tab — shared-scale coverage bars ✓ shipped (#46)
 
-Replace per-row bar scaling with a shared scale across visible apps so bar lengths are comparable.
+### What shipped
 
-### Change
+`CoverageBar` is a named export from `ApplicationsView.tsx`; takes `barMax: number` prop (no internal max computation).
 
-In `ApplicationsView.tsx`:
-- Lift `barMax` out of the `CoverageBar` component (currently computed per-row at line 37).
-- Compute `barMax` once over the **visible** apps (after the division filter at line 86):
+`barMax` is computed once over the **visible** apps (post-division-filter):
 
 ```ts
-const barMax = Math.max(
-  ...visible.flatMap(a => [a.current_coverage_fte, a.min_support_fte, a.recommended_support_fte])
-);
+const barMax = visible.length > 0
+  ? Math.max(...visible.flatMap(a => [a.current_coverage_fte, a.min_support_fte, a.recommended_support_fte]))
+  : 1;
 ```
 
-- Pass `barMax` into `CoverageBar` as a prop. Inside, all three ratios (`coveragePct`, `minPct`, `recPct`) divide by `barMax` instead of recomputing per-row.
-- No headroom past the max — the longest bar fills the full width.
-- Markers and the light-blue fill are otherwise unchanged.
+Passed into every `CoverageBar`; all three ratios (`coveragePct`, `minPct`, `recPct`) divide by it. Recomputes automatically when the division filter changes.
 
-### Out of scope
-
-- No changes to the marker semantics (min/recommended still rendered).
-- No changes to the displayed FTE labels under the bar.
+**Layout of each bar row:**
+- Min (amber) and recommended (green) FTE labels sit above the bar track, centered on their marker positions. Nudge logic keeps them ≥ 15 % of bar-width apart when they would otherwise overlap.
+- `0` and `barMax` labels sit inline (flex) on the left and right of the bar track, vertically centered — the scale endpoints are always visible.
+- Current FTE label sits below the bar track at `coveragePct%`, colored blue to match the fill.
 
 ---
 

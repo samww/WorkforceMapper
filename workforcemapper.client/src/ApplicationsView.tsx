@@ -32,30 +32,35 @@ const BADGE: Record<string, string> = {
   low: 'bg-green-600 text-white',
 };
 
-function CoverageBar({ current, min, recommended }: { current: number; min: number; recommended: number }) {
-  const barMax = Math.max(recommended * 1.2, current);
-  const coveragePct = Math.min((current / barMax) * 100, 100);
+export function CoverageBar({ current, min, recommended, barMax }: { current: number; min: number; recommended: number; barMax: number }) {
+  const coveragePct = (current / barMax) * 100;
   const minPct = (min / barMax) * 100;
   const recPct = (recommended / barMax) * 100;
+
+  // Nudge min/rec labels apart if closer than 15% of bar width
+  const gap = recPct - minPct;
+  const nudge = gap < 15 ? (15 - gap) / 2 : 0;
+  const minLabelPct = minPct - nudge;
+  const recLabelPct = recPct + nudge;
+
   return (
-    <div className="w-40">
-      <div className="relative h-2.5 bg-gray-700 rounded">
-        <div className="h-full bg-blue-500 rounded" style={{ width: `${coveragePct}%` }} />
-        <div
-          className="absolute top-0 h-full w-0.5 bg-amber-400"
-          style={{ left: `${minPct}%` }}
-          title={`Min: ${min.toFixed(1)} FTE`}
-        />
-        <div
-          className="absolute top-0 h-full w-0.5 bg-green-400"
-          style={{ left: `${recPct}%` }}
-          title={`Recommended: ${recommended.toFixed(1)} FTE`}
-        />
+    <div className="flex items-center gap-1 text-xs">
+      <span className="text-gray-500 shrink-0">0</span>
+      <div className="relative flex-1" style={{ minWidth: '8rem' }}>
+        <div className="relative h-4">
+          <span className="absolute -translate-x-1/2 text-amber-400" style={{ left: `${minLabelPct}%` }}>{min.toFixed(1)}</span>
+          <span className="absolute -translate-x-1/2 text-green-400" style={{ left: `${recLabelPct}%` }}>{recommended.toFixed(1)}</span>
+        </div>
+        <div className="relative h-2.5 bg-gray-700 rounded">
+          <div data-testid="coverage-fill" className="h-full bg-blue-500 rounded" style={{ width: `${coveragePct}%` }} />
+          <div data-testid="coverage-min-marker" className="absolute top-0 h-full w-0.5 bg-amber-400" style={{ left: `${minPct}%` }} />
+          <div data-testid="coverage-rec-marker" className="absolute top-0 h-full w-0.5 bg-green-400" style={{ left: `${recPct}%` }} />
+        </div>
+        <div className="relative h-4">
+          <span className="absolute -translate-x-1/2 text-blue-400" style={{ left: `${coveragePct}%` }}>{current.toFixed(1)}</span>
+        </div>
       </div>
-      <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-        <span>{current.toFixed(1)}</span>
-        <span>{min.toFixed(1)} / {recommended.toFixed(1)}</span>
-      </div>
+      <span className="text-gray-500 shrink-0">{barMax.toFixed(1)}</span>
     </div>
   );
 }
@@ -83,6 +88,9 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
   }, [month]);
 
   const visible = division === 'All' ? apps : apps.filter(a => a.division === division);
+  const barMax = visible.length > 0
+    ? Math.max(...visible.flatMap(a => [a.current_coverage_fte, a.min_support_fte, a.recommended_support_fte]))
+    : 1;
 
   if (loading) return (
     <div className="flex justify-center items-center h-40">
@@ -119,7 +127,7 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
                 </span>
               </td>
               <td className="py-2">
-                <CoverageBar current={app.current_coverage_fte} min={app.min_support_fte} recommended={app.recommended_support_fte} />
+                <CoverageBar current={app.current_coverage_fte} min={app.min_support_fte} recommended={app.recommended_support_fte} barMax={barMax} />
               </td>
             </tr>
           ))}
