@@ -496,55 +496,48 @@ public class DataService(WorkforceDbContext context)
 
     public async Task<ProductCostSummary> GetCostByProductAsync(string month)
     {
-        var mappings = await context.Mappings
-            .Where(m => m.Month == month)
-            .Include(m => m.Resource)
-            .Include(m => m.Activity)
-                .ThenInclude(a => a.Application)
-                    .ThenInclude(app => app!.ProductApplications)
-                        .ThenInclude(pa => pa.Product)
-            .Include(m => m.Activity)
-                .ThenInclude(a => a.Project)
-                    .ThenInclude(proj => proj!.ProjectProducts)
-                        .ThenInclude(pp => pp.Product)
-            .ToListAsync();
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
+
+        var appProducts = await context.Applications
+            .Include(a => a.ProductApplications).ThenInclude(pa => pa.Product)
+            .ToDictionaryAsync(a => a.Id);
+
+        var projectProducts = await context.Projects
+            .Include(p => p.ProjectProducts).ThenInclude(pp => pp.Product)
+            .ToDictionaryAsync(p => p.Id);
 
         var productCosts = new Dictionary<int, (string Name, decimal ArrUsd, decimal Cost)>();
         var unattributedCost = 0m;
-        var activeMappings = mappings.Where(m => GetMonthFlag(m.Resource, month) == 1).ToList();
 
-        foreach (var mapping in activeMappings)
+        foreach (var am in snapshot.ActiveMappings)
         {
-            var cost = mapping.Resource.MonthlyRate * mapping.Percent / 100m;
-            var activity = mapping.Activity;
-
-            if (activity.Application is { } app)
+            if (am.Activity.ApplicationId is { } appId && appProducts.TryGetValue(appId, out var app))
             {
                 var products = app.ProductApplications.Select(pa => pa.Product).ToList();
                 if (products.Count == 0)
-                    unattributedCost += cost;
+                    unattributedCost += am.AllocatedCost;
                 else
                 {
-                    var share = cost / products.Count;
+                    var share = am.AllocatedCost / products.Count;
                     foreach (var product in products)
                         AddCost(productCosts, product.Id, product.Name, product.ArrUsd, share);
                 }
             }
-            else if (activity.Project is { } project)
+            else if (am.Activity.ProjectId is { } projectId && projectProducts.TryGetValue(projectId, out var project))
             {
                 var products = project.ProjectProducts.Select(pp => pp.Product).ToList();
                 if (products.Count == 0)
-                    unattributedCost += cost;
+                    unattributedCost += am.AllocatedCost;
                 else
                 {
-                    var share = cost / products.Count;
+                    var share = am.AllocatedCost / products.Count;
                     foreach (var product in products)
                         AddCost(productCosts, product.Id, product.Name, product.ArrUsd, share);
                 }
             }
             else
             {
-                unattributedCost += cost;
+                unattributedCost += am.AllocatedCost;
             }
         }
 
@@ -556,11 +549,9 @@ public class DataService(WorkforceDbContext context)
         if (unattributedCost > 0)
             results.Add(new ProductCostResult(null, "Unattributed", 0m, unattributedCost));
 
-        var totalPayroll = (await context.Resources.ToListAsync())
-            .Where(r => GetMonthFlag(r, month) == 1)
-            .Sum(r => r.MonthlyRate);
-        var totalMappedCost = activeMappings.Sum(m => m.Resource.MonthlyRate * m.Percent / 100m);
-        var totalArrUsd = productCosts.Values.Sum(v => v.ArrUsd);
+        var totalPayroll    = snapshot.ActiveResources.Sum(ar => ar.Resource.MonthlyRate);
+        var totalMappedCost = snapshot.ActiveMappings.Sum(am => am.AllocatedCost);
+        var totalArrUsd     = productCosts.Values.Sum(v => v.ArrUsd);
 
         return new ProductCostSummary(totalPayroll, totalMappedCost, totalArrUsd, results);
     }

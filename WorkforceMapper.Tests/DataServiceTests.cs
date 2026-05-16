@@ -262,6 +262,35 @@ public class DataServiceTests
         Assert.Equal(10000m, unattributed.TotalAllocatedCost);
     }
 
+    // --- Cycle 11: inactive resource excluded from product cost (#40) ---
+
+    [Fact]
+    public async Task GetCostByProduct_InactiveResource_ExcludedFromProductCost()
+    {
+        await using var context = CreateContext();
+
+        var resource = new Resource
+        {
+            ResourceId = "IN00001", Name = "Inactive Resource", ResourceType = "Employee",
+            Company = "Test Co", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 10000m,
+            Jan = 1, Feb = 1, Mar = 1, Apr = 1, May = 0,
+            Jun = 1, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
+        };
+        context.Resources.Add(resource);
+        await context.SaveChangesAsync();
+
+        // Activity 1 = CoreDataWarehouse - Support (seeded); app 1 IS linked to products
+        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 1, Month = "2026-05", Percent = 100 });
+        await context.SaveChangesAsync();
+
+        var service = new DataService(context);
+        var summary = await service.GetCostByProductAsync("2026-05");
+
+        Assert.Equal(0m, summary.TotalMappedCost);
+        Assert.Empty(summary.Products);
+    }
+
     [Fact]
     public async Task GetResources_Returns80Resources_WhenSeeded()
     {
