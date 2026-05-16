@@ -30,6 +30,10 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             .Select(am => am.Resource.Id)
             .ToHashSet();
 
+        var targetSupportPct = snapshot.ActiveMappings
+            .Where(am => am.Activity.ActivityType == "Support" && am.Activity.ApplicationId == application.Id)
+            .ToDictionary(am => am.Resource.Id, am => am.Percent);
+
         var allApplications = await context.Applications.Include(a => a.Activities).ToListAsync();
         string AppDiv(Application a) => a.Activities.FirstOrDefault()?.Division ?? "";
 
@@ -46,11 +50,11 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             .Where(a => AppDiv(a) == division)
             .Sum(a => appSurplus.GetValueOrDefault(a.Id));
 
-        var tier1 = BuildIdleTier(snapshot.ActiveResources, excludedResourceIds, division, gap, crossDiv: false);
+        var tier1 = BuildIdleTier(snapshot.ActiveResources, targetSupportPct, division, gap, crossDiv: false);
         var tier2 = BuildSurplusSupportTier(snapshot.ActiveMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: false);
         var tier3 = BuildNonSupportTier(snapshot.ActiveMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: false);
         var tier4 = BuildNonSupportTier(snapshot.ActiveMappings, excludedResourceIds, division, "Project",       gap, crossDiv: false);
-        var tier5 = BuildIdleTier(snapshot.ActiveResources, excludedResourceIds, division, gap, crossDiv: true);
+        var tier5 = BuildIdleTier(snapshot.ActiveResources, targetSupportPct, division, gap, crossDiv: true);
         var tier6 = BuildSurplusSupportTier(snapshot.ActiveMappings, allApplications, appSurplus, appCoverage, excludedResourceIds, division, gap, crossDiv: true);
         var tier7 = BuildNonSupportTier(snapshot.ActiveMappings, excludedResourceIds, division, "Minor Changes", gap, crossDiv: true);
         var tier8 = BuildNonSupportTier(snapshot.ActiveMappings, excludedResourceIds, division, "Project",       gap, crossDiv: true);
@@ -115,25 +119,27 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
 
     private static List<DonorCandidateRow> BuildIdleTier(
         IReadOnlyList<ActiveResource> activeResources,
-        HashSet<int> excludedResourceIds,
+        Dictionary<int, int> targetSupportPct,
         string targetDivision,
         double gap,
         bool crossDiv)
     {
         return activeResources
-            .Where(ar => !excludedResourceIds.Contains(ar.Resource.Id)
-                         && (crossDiv ? ar.Resource.Division != targetDivision : ar.Resource.Division == targetDivision)
+            .Where(ar => (crossDiv ? ar.Resource.Division != targetDivision : ar.Resource.Division == targetDivision)
                          && ar.IdleFte > 0)
             .OrderByDescending(ar => ar.IdleFte)
             .Select(ar =>
             {
-                var idlePct = 100 - ar.AllocationPercent;
-                var gapCov  = gap > 0 ? ar.IdleFte / gap * 100.0 : 0.0;
+                var idlePct  = 100 - ar.AllocationPercent;
+                var gapCov   = gap > 0 ? ar.IdleFte / gap * 100.0 : 0.0;
+                var isExisting = targetSupportPct.TryGetValue(ar.Resource.Id, out var curPct);
                 return new DonorCandidateRow(
                     ar.Resource.Name, "Idle capacity", "Idle",
                     ar.AllocationPercent, ar.IdleCost, ar.IdleFte, ar.Resource.MonthlyRate, gapCov,
                     0.0, 0.0, crossDiv, DonablePercent: idlePct,
-                    ResourceDivision: ar.Resource.Division);
+                    ResourceDivision: ar.Resource.Division,
+                    IsExistingContributor: isExisting,
+                    CurrentTargetSupportPct: isExisting ? curPct : 0);
             })
             .ToList();
     }
@@ -262,12 +268,18 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
     private static string ComposeMappingChange(DonorCandidateRow row, string targetAppName, string targetDivision)
     {
         string clause = row.ActivityType == "Idle"
-            ? $"(use idle capacity - currently {row.Percent}% allocated)"
+            ? row.IsExistingContributor
+                ? $"(use idle capacity - currently {row.Percent}% total allocated)"
+                : $"(use idle capacity - currently {row.Percent}% allocated)"
             : row.ActivityType == "Support"
                 ? $"(reduce {row.ActivityName} from {row.Percent}% to {row.Percent - row.DonablePercent}%)"
                 : $"(remove {row.ActivityName} mapping, currently {row.Percent}%)";
 
-        var sentence = $"{row.ResourceName}: add {row.DonablePercent}% to {targetAppName} Support {clause}";
+        var action = row.IsExistingContributor
+            ? $"increase {targetAppName} Support from {row.CurrentTargetSupportPct}% to {row.CurrentTargetSupportPct + row.DonablePercent}%"
+            : $"add {row.DonablePercent}% to {targetAppName} Support";
+
+        var sentence = $"{row.ResourceName}: {action} {clause}";
 
         if (row.RequiresCrossDivisionalAlignment)
             sentence += $" - requires cross-divisional sign-off ({row.ResourceDivision} -> {targetDivision})";

@@ -675,7 +675,7 @@ public class DataServiceTests
         Assert.True(analyticsRow.RequiresCrossDivisionalAlignment);
     }
 
-    // Case 6 — Resource already mapped to the target app's Support activity does not appear in any tier
+    // Case 6 — Resource already mapped to target app's Support with idle capacity appears in T1 as existing contributor
     [Fact]
     public async Task GetDonorCandidates_ResourceOnTargetSupport_ExcludedFromAllTiers()
     {
@@ -694,7 +694,10 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        Assert.DoesNotContain(result.Candidates, c => c.ResourceName == "Target Supporter");
+        // Supporter has 70% idle → appears in T1 as an existing contributor (increase not add)
+        var supporterRow = Assert.Single(result.Candidates, c => c.ResourceName == "Target Supporter" && c.ActivityType == "Idle");
+        Assert.True(supporterRow.IsExistingContributor);
+        Assert.Equal(30, supporterRow.CurrentTargetSupportPct);
         Assert.Contains(result.Candidates, c => c.ResourceName == "PE Project Donor");
     }
 
@@ -938,18 +941,18 @@ public class DataServiceTests
         Assert.False(idleRow.RequiresCrossDivisionalAlignment);
     }
 
-    // Cycle 3 — Resource on target app's Support is excluded from idle tier (already a known donor)
+    // Cycle 3 — Resource on target app's Support with idle capacity appears in T1 as existing contributor
     [Fact]
     public async Task GetDonorCandidates_ResourceOnTargetSupport_ExcludedFromIdleTier()
     {
-        // Supporter is on AuthService Support at 30% → excluded from all tiers including idle
-        // ProjectDonor has idle (60%) and appears; Supporter must not appear even with 70% idle
+        // Supporter is on AuthService Support at 30% with 70% idle → now included in T1 with IsExistingContributor=true
+        // Regular Donor also appears; both show up in idle tier
         await using var context = CreateContext();
         var supporter   = MakePeResource("I3A00001", "Target Support Idle");
         var projectDonor = MakePeResource("I3A00002", "Regular Donor");
         context.Resources.AddRange(supporter, projectDonor);
         await context.SaveChangesAsync();
-        // Activity 5 = AuthService - Support (the target); supporter at 30% → 70% idle but excluded
+        // Activity 5 = AuthService - Support (the target); supporter at 30% → 70% idle, existing contributor
         context.Mappings.AddRange(
             new Mapping { ResourceId = supporter.Id,    ActivityId = 5, Month = "2026-05", Percent = 30 },
             new Mapping { ResourceId = projectDonor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
@@ -959,7 +962,8 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        Assert.DoesNotContain(result.Candidates, c => c.ResourceName == "Target Support Idle");
+        var supporterRow = Assert.Single(result.Candidates, c => c.ResourceName == "Target Support Idle" && c.ActivityType == "Idle");
+        Assert.True(supporterRow.IsExistingContributor);
         Assert.Contains(result.Candidates, c => c.ResourceName == "Regular Donor" && c.ActivityType == "Idle");
     }
 

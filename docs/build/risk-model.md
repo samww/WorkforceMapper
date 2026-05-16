@@ -62,7 +62,7 @@ Active resources whose capacity could be shifted onto an under-resourced applica
 | 7 | All Minor Changes mappings | Other divisions | true |
 | 8 | All Project mappings | Other divisions | true |
 
-Exclusion rule: a resource already mapped to the target application's Support activity must not appear in any tier (including the idle tier).
+Exclusion rule: a resource already mapped to the target application's Support activity is excluded from tiers 2–8. It is **included** in tiers 1 and 5 if it has spare capacity (`idle_fte > 0`), because increasing an existing Support allocation displaces nothing. `DonorCandidateRow.IsExistingContributor` is `true` for these rows; `CurrentTargetSupportPct` carries their current percent on the target Support activity. `ComposeMappingChange` renders `"increase {app} Support from {current}% to {current + donable}%"` rather than `"add {donable}%"`, and the clause reads `"(use idle capacity - currently {total}% total allocated)"`.
 
 Idle FTE for a resource in a month = `100 - sum(percent for the resource in the month)`, percentage points. Resources with zero mappings in the month still appear if the month flag is 1. `AllocationFte` on the row is `idle_pp / 100`; `ImpliedMonthlyCost` is `MonthlyRate * AllocationFte`; the row's `Percent` field carries the resource's current total allocation (used to render "currently X% allocated" in the mapping-change string), not a source-mapping percent. `ActivityType` is `"Idle"` and `ActivityName` is `"Idle capacity"`.
 

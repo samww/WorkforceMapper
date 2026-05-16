@@ -89,7 +89,9 @@ public record DonorCandidateRow(
     bool RequiresCrossDivisionalAlignment,
     bool InFewestChangesCombination = false,
     int DonablePercent = 0,
-    string ResourceDivision = ""
+    string ResourceDivision = "",
+    bool IsExistingContributor = false,
+    int CurrentTargetSupportPct = 0
 );
 
 public record FewestChangesCombinationSummary(
