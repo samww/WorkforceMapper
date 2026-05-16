@@ -1371,16 +1371,16 @@ public class DataServiceTests
         Assert.Contains(fieldwork.contributing_apps, a => a.name == "AuthService");
     }
 
-    // ── Issue #31: largest-remainders rounding for DonablePercent ────────────
+    // ── Issue #31 / Issue #43: trim-last DonablePercent ──────────────────────
 
-    // Cycle 3 — LR tie-break: equal fractional parts → larger AllocationFte gets the extra pp
+    // Cycle 3 — non-stopping candidates keep full tier-builder DonablePercent; only stopping is trimmed
     [Fact]
-    public async Task GetDonorCandidates_LR_TieBreakByAllocationFte()
+    public async Task GetDonorCandidates_TrimLast_NonStoppingCandidatesRetainFullDonablePercent()
     {
-        // gap = 1.5 FTE; 3 donors at 80%, 50%, 30% (tier-3, PE project)
-        // donatable_pct unrounded: 53.33, 33.33, 20.00
-        // D(80%) and D(50%) both have frac 0.33; deficit = 1 (only one gets the extra pp)
-        // D(80%) has larger AllocationFte → must win the tie-break and get 54, not 53
+        // gap = 1.5 FTE; 3 project donors at 80%, 50%, 30% (tier 4, PE)
+        // Sorted by AllocationFte desc: d80 (0.80), d50 (0.50), d30 (0.30)
+        // Cumulative: d80=0.80 (53%), d50=1.30 (87%), d30=1.60 (107% → stopping at idx 2)
+        // Trim-last: d80=80 (full), d50=50 (full), d30=max(1,round((1.5-1.30)*100))=20
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 103, Name = "TieBreakApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
         context.Activities.Add(new Activity { Id = 203, Name = "TieBreakApp - Support", ActivityType = "Support", ApplicationId = 103, Division = "Platform Engineering" });
@@ -1410,10 +1410,8 @@ public class DataServiceTests
         var changes = result.FewestChangesCombination.MappingChanges;
         Assert.Equal(3, changes.Count);
         static int Donable(string s) => int.Parse(s.Split("add ")[1].Split('%')[0]);
-        // deficit = round(106.67) - (53+33+20) = 107 - 106 = 1
-        // D80 and D50 tie on frac 0.33; D80 wins (larger AllocationFte) → 54
-        Assert.Equal(54, Donable(changes.Single(s => s.Contains("TB Donor 80"))));
-        Assert.Equal(33, Donable(changes.Single(s => s.Contains("TB Donor 50"))));
+        Assert.Equal(80, Donable(changes.Single(s => s.Contains("TB Donor 80"))));
+        Assert.Equal(50, Donable(changes.Single(s => s.Contains("TB Donor 50"))));
         Assert.Equal(20, Donable(changes.Single(s => s.Contains("TB Donor 30"))));
     }
 
@@ -1474,13 +1472,13 @@ public class DataServiceTests
             $"DonablePercent exceeds source Percent in: {changes[0]}");
     }
 
-    // Cycle 1 (tracer) — sum(DonablePercent for combo rows) == round(GapCoverageReachedPct)
+    // Cycle 1 (tracer) — stopping candidate is trimmed to remaining gap; non-stopping keeps full value
     [Fact]
-    public async Task GetDonorCandidates_LR_SumMatchesHeadline()
+    public async Task GetDonorCandidates_TrimLast_StoppingCandidateTrimmedToRemainingGap()
     {
         // gap = 1.5 FTE; 2 donors at 100% Minor Changes → cumulative = 133.3%
-        // Independent rounding gives DonablePercent = 100 + 100 = 200, not 133.
-        // Largest-remainders must produce sum == round(133.3) = 133.
+        // First donor (1.0 FTE) is non-stopping → DonablePercent = 100 (full).
+        // Second donor is stopping: remainingGap = 1.5 - 1.0 = 0.50 FTE → DonablePercent = 50.
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 101, Name = "LRTestApp", MinSupportFte = 1.5, RecommendedSupportFte = 0.5 });
         context.Activities.Add(new Activity { Id = 201, Name = "LRTestApp - Support", ActivityType = "Support", ApplicationId = 101, Division = "Platform Engineering" });
@@ -1490,7 +1488,7 @@ public class DataServiceTests
         var donorB = MakePeResource("LR00002", "LR Donor B");
         context.Resources.AddRange(donorA, donorB);
         await context.SaveChangesAsync();
-        // Activity 35 = SurveyEngine - Minor Changes (PE, tier-2)
+        // Activity 35 = SurveyEngine - Minor Changes (PE, tier 3)
         context.Mappings.AddRange(
             new Mapping { ResourceId = donorA.Id, ActivityId = 35, Month = "2026-05", Percent = 100 },
             new Mapping { ResourceId = donorB.Id, ActivityId = 35, Month = "2026-05", Percent = 100 });
@@ -1504,8 +1502,8 @@ public class DataServiceTests
         var changes = result.FewestChangesCombination.MappingChanges;
         Assert.Equal(2, changes.Count);
         static int Donable(string s) => int.Parse(s.Split("add ")[1].Split('%')[0]);
-        var expectedTarget = (int)Math.Round(result.FewestChangesCombination.GapCoverageReachedPct);
-        Assert.Equal(expectedTarget, changes.Sum(Donable));
+        Assert.Contains(changes, s => Donable(s) == 100);
+        Assert.Contains(changes, s => Donable(s) == 50);
     }
 
     // ── Issue #32: trim get_donor_candidates response ────────────────────────
@@ -2025,11 +2023,14 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.NotNull(result.FewestChangesCombination);
+        // Trim-last: all 4 non-stopping donors keep DonablePercent = 100 (full donatable);
+        // stopping donor also gets 100 (remainingGap = 4.0-3.0 = 1.0 FTE = 100%).
+        // Reduce clause: 100 - 100 = 0 → "from 100% to 0%".
         Assert.All(result.FewestChangesCombination.MappingChanges, s =>
         {
             Assert.Contains("reduce", s);
             Assert.Contains("100%", s);
-            Assert.Contains("75%", s); // 100 - 25 = 75
+            Assert.Contains("0%", s); // 100 - 100 = 0
         });
     }
 

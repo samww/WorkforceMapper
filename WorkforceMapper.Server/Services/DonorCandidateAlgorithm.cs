@@ -71,7 +71,14 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             .ToList();
 
         if (gap > 0 && stoppingIdx >= 0)
-            candidates = ApplyLargestRemainders(candidates, stoppingIdx, gap);
+        {
+            var cumulativeBefore = candidates[stoppingIdx].CumulativeFte - candidates[stoppingIdx].AllocationFte;
+            var remainingGap = gap - cumulativeBefore;
+            var trimmedPct = Math.Max(1, (int)Math.Round(remainingGap * 100.0));
+            candidates = candidates
+                .Select((c, i) => i == stoppingIdx ? c with { DonablePercent = trimmedPct } : c)
+                .ToList();
+        }
 
         FewestChangesCombinationSummary? fewestChangesCombo = null;
         if (gap > 0 && stoppingIdx >= 0)
@@ -104,49 +111,6 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             surplusSupportFteAvailable,
             fewestChangesCombo,
             totalAvailableCandidatesCount);
-    }
-
-    private static List<DonorCandidateRow> ApplyLargestRemainders(
-        List<DonorCandidateRow> candidates, int stoppingIdx, double gap)
-    {
-        var count   = stoppingIdx + 1;
-        var gapCovReached = candidates[stoppingIdx].CumulativeGapCoveragePct;
-        var target  = (int)Math.Round(gapCovReached);
-        target      = Math.Max(0, Math.Min(target, 100 * count));
-
-        var unrounded = Enumerable.Range(0, count)
-            .Select(i => candidates[i].AllocationFte / gap * 100.0)
-            .ToArray();
-
-        var caps = Enumerable.Range(0, count)
-            .Select(i => (int)Math.Round(candidates[i].AllocationFte * 100.0))
-            .ToArray();
-
-        var adj = Enumerable.Range(0, count)
-            .Select(i => Math.Min((int)Math.Floor(unrounded[i]), caps[i]))
-            .ToArray();
-
-        var deficit = target - adj.Sum();
-
-        var order = Enumerable.Range(0, count)
-            .OrderByDescending(i => unrounded[i] - Math.Floor(unrounded[i]))
-            .ThenByDescending(i => candidates[i].AllocationFte)
-            .ToList();
-
-        var distributed = 0;
-        foreach (var idx in order)
-        {
-            if (distributed >= deficit) break;
-            if (adj[idx] < caps[idx])
-            {
-                adj[idx]++;
-                distributed++;
-            }
-        }
-
-        return candidates
-            .Select((c, i) => i < count ? c with { DonablePercent = adj[i] } : c)
-            .ToList();
     }
 
     private static List<DonorCandidateRow> BuildIdleTier(
