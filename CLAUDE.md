@@ -8,7 +8,7 @@ Issues #2–#44 are complete; their per-issue specs in `docs/build/issue-N-*.md`
 
 Additional docs (only when needed):
 - `docs/build/risk-model.md` — capacity coverage, application risk, product risk, donor candidate tier model
-- `docs/build/monthly-allocation-snapshot.md` — snapshot interface, what it owns, migration order across the seven tools (only when working on snapshot extraction or new tool methods)
+- `docs/build/monthly-allocation-snapshot.md` — snapshot interface, what it owns, construction pattern (only when adding new tool methods or modifying MonthlyAllocationSnapshot)
 - `docs/build/db-schema.md` — cost attribution chain, key constraints
 - `docs/build/synthetic-data-spec.md` — seed data rate tables (only when regenerating `data/*.json` from scratch)
 - `docs/build/frontend-components.md` — detail screen props, navigation state, MermaidDiagram, DependencyGraph (only when touching frontend)

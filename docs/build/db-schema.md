@@ -56,7 +56,7 @@ flowchart LR
 | product_applications | 26 | 3-5 dependent applications per product |
 | projects | 12 | One per project-change activity |
 | project_products | 26 | Several projects benefit multiple products |
-| activities | 48 | 10 PE / 9 Analytics / 8 Data Collection / 6 Client Services (Support + Minor Changes per app) |
+| activities | 48 | 36 application activities (Support + Minor Changes per app × 18 apps) + 12 project activities |
 | application_dependencies | 17 | Seeded via EF HasData; all 18 apps transitively depend on AuthService |
 | resources | 80 | Seeded from data/resources.json |
-| mappings | ~160 | Seeded from data/mappings.json; updated via UI |
+| mappings | 3,144 | Seeded from data/mappings.json; 12 months × ~262 active mappings/month; updated via UI |

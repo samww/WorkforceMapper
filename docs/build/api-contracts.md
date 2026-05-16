@@ -1,7 +1,6 @@
 # API Surface + NL Query Tools
 
-> Domain context, glossary, data model, and constraints are in `CONTEXT.md`.
-> This file reflects the **target state after issue #10 lands**. See git history for the pre-#10 surface.
+> **Authoritative API surface is in `CONTEXT.md`.** This file is a historical spec (target state after #10); subsequent issues (#11–#44) extended it. Treat CONTEXT.md as the source of truth for the API surface. The sections below are accurate where noted but may be incomplete for later additions.
 
 ## API Surface
 
@@ -26,6 +25,7 @@
 | `get_cost_by_product(month?)` | `product_name`, `arr_usd`, `total_monthly_cost`; plus explicit `"Unattributed"` line | Unchanged |
 | `get_application_risk(application_id?, month?)` | `id`, `name`, `division`, `min_support_fte`, `recommended_support_fte`, `current_coverage_fte`, `risk` | Added in #11/#14 |
 | `get_product_risk(product_id?, month?)` | `id`, `name`, `arr`, `risk`, `contributing_apps[]` | Added in #12/#14 |
+| `get_donor_candidates(application_id?, application_name?, month?)` | `application_id`, `application_name`, `gap_fte`, `candidates[]`, `fewest_changes_combination` | Added in #29 |
 | ~~`get_overallocated_resources`~~ | — | Removed in #14 (unreachable under hard cap) |
 
 ## Response shapes (new in #10)
@@ -49,7 +49,7 @@
 
 `risk` values: `"high"` | `"medium"` | `"low"`
 
-`dependent_products` — direct `product_applications` links only; foundational apps with no direct product mapping (e.g. AuthService) return `[]`. Each entry now includes a `risk` field (product max-wins risk, added in #12).
+`dependent_products` — every product whose transitive dependency closure includes this application (both direct and indirect links). Foundational apps such as AuthService appear in all dependent products' lists because all products transitively depend on them. Each entry includes a `risk` field (product max-wins risk). `total_dependent_arr_usd` (pre-computed sum) and `dependent_app_count` are also on the DTO (added in later issues).
 
 ### `ProductRiskDto`
 

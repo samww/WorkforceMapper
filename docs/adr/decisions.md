@@ -124,7 +124,7 @@ The snapshot owns: the active-flag rule (resources contribute only when their mo
 
 **Key constraints:**
 - The snapshot is the single source of truth for `capacity coverage`, `allocation_pct`, idle FTE, and per-resource / per-mapping cost. New tool methods that re-implement these must instead consume the snapshot.
-- `Resource.IsActiveIn(month)` is the single source of truth for the active-flag rule. `DataService.GetMonthFlag` is a duplicate scheduled for removal during the migration.
+- `Resource.IsActiveIn(month)` is the single source of truth for the active-flag rule. `DataService.GetMonthFlag` was a duplicate and was removed in #41.
 - The public constructor `MonthlyAllocationSnapshot(month, activeResources, activeMappings)` is the test seam — snapshot tests build snapshots without a `DbContext`.
 - Migration proceeds in five slices: `GetCapacityByDivisionAsync` first (validation), then the small projection trio, then `GetApplicationsAsync` (validates `SupportCoverageOf`), then `GetCostByProductAsync`, then `GetDonorCandidatesAsync`. See `docs/build/monthly-allocation-snapshot.md`.
 - The `WebApplicationFactory` integration tests remain the regression net. Existing `DataServiceTests` continue to pass; their consolidation onto snapshot tests is a cleanup, not a slice gate.
