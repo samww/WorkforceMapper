@@ -7,8 +7,9 @@ import ApplicationDetail from './ApplicationDetail';
 import ProductsView from './ProductsView';
 import type { ProductRisk } from './ProductsView';
 import ProductDetail from './ProductDetail';
+import ProjectsView from './ProjectsView';
 
-type Tab = 'mappings' | 'applications' | 'products';
+type Tab = 'mappings' | 'applications' | 'products' | 'projects';
 
 const DEFAULT_MONTH = '2026-05';
 const DIVISIONS = ['All', 'Platform Engineering', 'Analytics', 'Data Collection', 'Client Services'];
@@ -32,7 +33,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       <div className="flex-1 overflow-auto min-w-0 flex flex-col">
         <nav className="flex gap-1 px-4 pt-4 pb-0 border-b border-gray-700 items-center">
-          {(['mappings', 'applications', 'products'] as Tab[]).map(t => (
+          {(['mappings', 'applications', 'products', 'projects'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => { setTab(t); setSelectedApp(null); setSelectedProduct(null); setProductBackApp(null); setAppBackProduct(null); }}
@@ -116,6 +117,9 @@ export default function App() {
           )}
           {tab === 'products' && !selectedProduct && (
             <ProductsView month={month} division={division} onSelectProduct={setSelectedProduct} />
+          )}
+          {tab === 'projects' && (
+            <ProjectsView month={month} division={division} />
           )}
           {tab === 'products' && selectedProduct && (
             <ProductDetail

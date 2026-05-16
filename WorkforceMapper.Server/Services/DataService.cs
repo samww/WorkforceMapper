@@ -203,6 +203,30 @@ public class DataService(WorkforceDbContext context)
         return true;
     }
 
+    public async Task<List<ProjectAllocationDto>> GetProjectsAsync(
+        string month, int? projectId = null, string? projectName = null)
+    {
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
+
+        var query = context.Projects
+            .Include(p => p.Activities)
+            .AsQueryable();
+
+        if (projectId.HasValue)
+            query = query.Where(p => p.Id == projectId.Value);
+        if (projectName != null)
+            query = query.Where(p => p.Name.Contains(projectName));
+
+        var projects = await query.OrderBy(p => p.Name).ToListAsync();
+
+        return projects.Select(p => new ProjectAllocationDto(
+            p.Id,
+            p.Name,
+            p.Activities.Select(a => a.Division).Distinct().OrderBy(d => d).ToList(),
+            snapshot.ProjectAllocationOf(p.Id)
+        )).ToList();
+    }
+
     public async Task<ProductRiskSummary> GetProductRiskAsync(string month, int? productId = null) =>
         await new ProductRiskReporter(context).ReportAsync(month, productId);
 

@@ -62,6 +62,13 @@ public class AgentService(IClaudeClient claude, DataService data)
           considered — do not count the candidates list to determine pool size.
           Do not compose donor candidates manually from get_activity_allocations calls.
 
+        - Project allocation (get_project_allocation) returns the total FTE allocated to each project
+          for the month. Projects have no risk classification or capacity thresholds — do not describe
+          a project as "under-resourced", "adequately staffed", or "at risk", and do not invent
+          benchmarks. Report allocation figures only. Use total_project_allocation_fte for the
+          company-wide total and projects_ranked_by_allocation for "which projects consume the most"
+          questions — do not sort or sum the projects list yourself.
+
         - When asked which division is most constrained on capacity, use get_capacity_by_division.
           The result includes a pre-computed fully_constrained_divisions list (all divisions at 100%
           allocation). If this list contains more than one division, they are equally constrained —
@@ -204,7 +211,25 @@ public class AgentService(IClaudeClient claude, DataService data)
                         month),
                     JsonOpts),
 
+            "get_project_allocation" =>
+                JsonSerializer.Serialize(
+                    await BuildProjectAllocationResponse(args, month), JsonOpts),
+
             _ => JsonSerializer.Serialize(new { error = $"Unknown tool: {toolUse.Name}" })
+        };
+    }
+
+    private async Task<object> BuildProjectAllocationResponse(JsonNode? args, string month)
+    {
+        var projects = await data.GetProjectsAsync(
+            month,
+            args?["project_id"]?.GetValue<int>(),
+            args?["project_name"]?.GetValue<string>());
+        return new
+        {
+            projects,
+            total_project_allocation_fte = Math.Round(projects.Sum(p => p.allocation_fte), 2),
+            projects_ranked_by_allocation = projects.OrderByDescending(p => p.allocation_fte).ToList()
         };
     }
 
@@ -271,6 +296,20 @@ public class AgentService(IClaudeClient claude, DataService data)
             new JsonObject
             {
                 ["month"] = Prop("string", "Month in YYYY-MM format.")
+            }),
+        MakeTool("get_project_allocation",
+            "Get the FTE allocated to each project for the month. " +
+            "Returns pre-computed aggregates: total_project_allocation_fte (sum across all returned projects) " +
+            "and projects_ranked_by_allocation (list sorted by allocation_fte descending). " +
+            "Use total_project_allocation_fte for the company-wide total — do not sum the projects list. " +
+            "Use projects_ranked_by_allocation for 'which projects consume the most' questions — " +
+            "do not sort the projects list yourself. " +
+            "Projects carry no risk classification or capacity thresholds — do not describe allocation as adequate or insufficient.",
+            new JsonObject
+            {
+                ["project_id"]   = Prop("integer", "Filter to a specific project ID."),
+                ["project_name"] = Prop("string",  "Filter by project name (substring match)."),
+                ["month"]        = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_donor_candidates",
             "Get donor candidates for an under-resourced application in eight-tier priority order: " +

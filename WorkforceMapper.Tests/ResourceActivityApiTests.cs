@@ -123,6 +123,29 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         db.SaveChanges();
     }
 
+    // Activity 7  = P01 CoreDataWarehouse Cloud Migration - Project (Platform Engineering)
+    // Activity 17 = P05 ML Forecasting Platform - Project (Analytics)
+    public void SeedProjectsTestData()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WorkforceDbContext>();
+        if (db.Resources.Any()) return;
+
+        // One resource at 50% on P01 (Platform Engineering) → P01 allocation = 0.5 FTE
+        var resource = new Resource
+        {
+            ResourceId = "PR00001", Name = "Project Resource 1", ResourceType = "Employee",
+            Company = "Pragmenta", Seniority = "Analyst", RoleType = "Developer",
+            Division = "Platform Engineering", Country = "UK", MonthlyRate = 9000m,
+            Jan = 1, Feb = 1, Mar = 1, Apr = 1, May = 1,
+            Jun = 1, Jul = 1, Aug = 1, Sep = 1, Oct = 1, Nov = 1, Dec = 1
+        };
+        db.Resources.Add(resource);
+        db.SaveChanges();
+        db.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 7, Month = "2026-05", Percent = 50 });
+        db.SaveChanges();
+    }
+
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);

@@ -55,6 +55,13 @@ Key facts about the data:
   considered — do not count the candidates list to determine pool size.
   Do not compose donor candidates manually from get_activity_allocations calls.
 
+- Project allocation (get_project_allocation) returns the total FTE allocated to each project
+  for the month. Projects have no risk classification or capacity thresholds — do not describe
+  a project as "under-resourced", "adequately staffed", or "at risk", and do not invent
+  benchmarks. Report allocation figures only. Use total_project_allocation_fte for the
+  company-wide total and projects_ranked_by_allocation for "which projects consume the most"
+  questions — do not sort or sum the projects list yourself.
+
 - When asked which division is most constrained on capacity, use get_capacity_by_division.
   The result includes a pre-computed fully_constrained_divisions list (all divisions at 100%
   allocation). If this list contains more than one division, they are equally constrained —

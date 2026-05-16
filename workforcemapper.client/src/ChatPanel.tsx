@@ -6,6 +6,7 @@ const CHIPS = [
   'What unallocated resource cost does Data Collection carry this month?',
   'What is the monthly cost attribution by product?',
   'Which division is most constrained on capacity this month?',
+  'Which projects are consuming the most capacity this month?',
 ];
 
 interface Props {

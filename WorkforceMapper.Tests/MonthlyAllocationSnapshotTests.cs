@@ -133,6 +133,47 @@ public class MonthlyAllocationSnapshotTests
         Assert.All(snap.ActiveMappings, am => Assert.Equal(active.Id, am.Resource.Id));
     }
 
+    // ── ProjectAllocationOf ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ProjectAllocationOf_SumsAllProjectActivityMappings_ReturnsFteCorrectly()
+    {
+        var r = MakeResource(1, 10_000m);
+        var act = new Activity { Id = 10, Name = "P01 - Project", ActivityType = "Project", ProjectId = 1 };
+        var mappings = new List<Mapping> { MakeMapping(r, act, "2026-05", 50) };
+
+        var snap = new MonthlyAllocationSnapshot("2026-05", [r], mappings);
+
+        Assert.Equal(0.50, snap.ProjectAllocationOf(1), precision: 10);
+    }
+
+    [Fact]
+    public void ProjectAllocationOf_ExcludesInactiveResources()
+    {
+        var active   = MakeResource(1, 10_000m, activeInMay: true);
+        var inactive = MakeResource(2, 8_000m,  activeInMay: false);
+        var act = new Activity { Id = 10, Name = "P01 - Project", ActivityType = "Project", ProjectId = 1 };
+        var mappings = new List<Mapping>
+        {
+            MakeMapping(active,   act, "2026-05", 50),
+            MakeMapping(inactive, act, "2026-05", 50)
+        };
+
+        var snap = new MonthlyAllocationSnapshot("2026-05", [active, inactive], mappings);
+
+        // Only active resource's 50% counts
+        Assert.Equal(0.50, snap.ProjectAllocationOf(1), precision: 10);
+    }
+
+    [Fact]
+    public void ProjectAllocationOf_ReturnsZero_WhenNoMappingsExist()
+    {
+        var r = MakeResource(1, 10_000m);
+        var snap = new MonthlyAllocationSnapshot("2026-05", [r], []);
+
+        Assert.Equal(0.0, snap.ProjectAllocationOf(99));
+    }
+
     [Fact]
     public void AllocationPercent_SumsMultipleMappingPercents_ForOneResource()
     {

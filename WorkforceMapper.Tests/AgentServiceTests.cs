@@ -568,6 +568,81 @@ public class AgentServiceTests
         Assert.Contains("in_fewest_changes_combination", desc, StringComparison.Ordinal);
     }
 
+    // ── Cycle 17 — get_project_allocation ───────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_ToolList_ContainsGetProjectAllocation()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        Assert.NotNull(captured?.Tools);
+        Assert.Contains(captured.Tools, t => t.Function?.Name == "get_project_allocation");
+    }
+
+    [Fact]
+    public async Task RunAsync_DispatchesGetProjectAllocation_ResultContainsTotalsAndRanking()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        string? toolResultJson = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse("get_project_allocation", "tc_pa", @"{""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+                p.Messages.Any(m => m.Content != null &&
+                    m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_pa")))))
+            .Callback<MessageParameters>(p =>
+            {
+                var tr = p.Messages
+                    .SelectMany(m => m.Content?.OfType<ToolResultContent>() ?? [])
+                    .First(tr => tr.ToolUseId == "tc_pa");
+                toolResultJson = tr.Content?.OfType<TextContent>().FirstOrDefault()?.Text;
+            })
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("Which projects are consuming the most capacity?", "2026-05", _ => Task.CompletedTask);
+
+        Assert.NotNull(toolResultJson);
+        Assert.Contains("total_project_allocation_fte", toolResultJson);
+        Assert.Contains("projects_ranked_by_allocation", toolResultJson);
+    }
+
+    [Fact]
+    public async Task BuildSystemPrompt_ProjectParagraph_ForbidsRiskAndAdequacyLanguage()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        Assert.Contains("get_project_allocation", systemText);
+        Assert.Contains("under-resourced", systemText);
+        Assert.Contains("do not invent", systemText, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── Cycle 4 ─────────────────────────────────────────────────────────────
 
     [Fact]

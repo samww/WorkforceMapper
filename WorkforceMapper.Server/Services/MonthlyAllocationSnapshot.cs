@@ -43,6 +43,12 @@ public sealed class MonthlyAllocationSnapshot
                       && am.Activity.ApplicationId == applicationId)
             .Sum(am => am.Percent / 100.0);
 
+    public double ProjectAllocationOf(int projectId) =>
+        _mappingsByActivityId.Values
+            .SelectMany(x => x)
+            .Where(am => am.Activity.ProjectId == projectId)
+            .Sum(am => am.Percent / 100.0);
+
     public MonthlyAllocationSnapshot(
         string month,
         IReadOnlyList<Resource> activeResources,

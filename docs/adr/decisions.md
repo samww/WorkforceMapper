@@ -17,19 +17,20 @@
 
 ## ADR 3: Structured tool-use over NL-to-SQL
 
-**Decision:** Seven typed tools (`get_capacity_by_division`, `get_activity_allocations`, `get_unallocated_resources`, `get_cost_by_product`, `get_application_risk`, `get_product_risk`, `get_donor_candidates`) implemented as EF Core queries in `DataService.cs`. Claude calls tools; never sees schema or executes SQL.
+**Decision:** Eight typed tools (`get_capacity_by_division`, `get_activity_allocations`, `get_unallocated_resources`, `get_cost_by_product`, `get_application_risk`, `get_product_risk`, `get_donor_candidates`, `get_project_allocation`) implemented as EF Core queries in `DataService.cs`. Claude calls tools; never sees schema or executes SQL.
 
 **Why not NL-to-SQL:**
-- Security: tool-use exposes only seven read operations; NL-to-SQL exposes the full schema.
+- Security: tool-use exposes only eight read operations; NL-to-SQL exposes the full schema.
 - Predictability: tool response shapes are typed and fixed; NL-to-SQL output varies per query.
 - Testability: each tool is a C# method with a defined signature; tool call selection is assertable in unit tests.
 
 **Key constraints:**
-- Fixed surface area — questions outside the seven tools cannot be answered (data limitation, not a tool limitation).
+- Fixed surface area — questions outside the eight tools cannot be answered (data limitation, not a tool limitation).
 - `get_cost_by_product` includes an explicit `"Unattributed"` line for cost not traceable to any product — this is intentional, not a data quality issue.
 - `get_application_risk` and `get_product_risk` expose capacity coverage, risk classification, and dependent product ARR; they replace the former `get_overallocated_resources` tool (removed in issue #14).
 - `get_donor_candidates` returns active resources whose capacity could shift onto an under-resourced application's Support activity, in eight-tier priority order (same-division tiers 1–4, cross-divisional tiers 5–8); added in issue #29.
-- All seven tools accept optional `month` parameter defaulting to the selected month.
+- `get_project_allocation` returns FTE allocated to each project with pre-computed `total_project_allocation_fte` and `projects_ranked_by_allocation`; added in issue #47. Projects carry no risk classification (ADR 10).
+- All eight tools accept optional `month` parameter defaulting to the selected month.
 
 ---
 

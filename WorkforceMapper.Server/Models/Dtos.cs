@@ -38,6 +38,8 @@ public record ProductRiskDto(
     List<DirectAppNodeDto> direct_apps
 );
 
+public record ProjectAllocationDto(int id, string name, List<string> divisions, double allocation_fte);
+
 public record ApplicationRiskDto(
     int id,
     string name,
