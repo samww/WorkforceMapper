@@ -159,3 +159,33 @@ The snapshot owns: the active-flag rule (resources contribute only when their mo
 - New tools are designed pre-render-first: ask "what sentences will the LLM render?" before defining the data shape.
 
 **Precedent:** issue #33 (`mapping_changes`), #34 (`summary_paragraph`), `docs/build/user-test-feedback-2.md` (round-2 extensions).
+
+---
+
+## ADR 12: Demo auth toggle via GitHub Actions, not in-app UI
+
+**Decision:** Toggling Easy Auth on/off for live demos is done by two `workflow_dispatch` GitHub Actions workflows (`demo-auth-off.yml`, `demo-auth-on.yml`), each one tap away in the GitHub mobile app. Workflows authenticate to Azure via OIDC using a service principal that holds a custom role with the minimum permissions (`Microsoft.App/containerApps/read`, `Microsoft.App/containerApps/authConfigs/read+write`), scoped to the single Container App. The "off" state uses `--unauthenticated-client-action AllowAnonymous` — Easy Auth and the Entra app registration stay configured; only anonymous behaviour changes.
+
+**Why:** The original ask was an in-app React toggle. That approach was rejected for four independent reasons: (1) the toggle is only as secure as the auth it controls — once auth is off, anyone reaching the URL can flip it; (2) it would require granting the Container App a Managed Identity with write access to its own auth config (extra blast radius); (3) it would add server- and client-side code paths whose only purpose is operational rather than domain; (4) recovery from a botched deploy is harder because the toggle UI itself can break.
+
+GitHub Actions delivers the same phone-friendly UX (~5 taps from the mobile app, ~20s end-to-end), keeps credentials out of phones and inside scoped GitHub Secrets, requires zero application code changes, and yields a free audit trail in the Actions tab.
+
+**Alternatives considered and rejected:**
+
+- **In-app React UI toggle.** Rejected for the four reasons above. Would have been justified only if non-developer users needed to toggle, or if a broader admin UI was already planned.
+- **Azure mobile app.** Plausibly simpler (no setup), but the Container App Authentication blade's mobile-portal behaviour is not reliably feature-complete. Worth verifying in 2 minutes before falling back to this approach; if it works in practice, this ADR is overkill for the use case. Retained the GH Actions path because it (a) is verifiable to work, (b) gives an audit trail, (c) is reproducible across maintainers.
+- **Azure Cloud Shell, bookmarked.** Works today with zero infrastructure changes. Rejected as the primary path because there is no audit trail, the on-phone typing experience is fragile during a live demo, and bookmarked one-liners are easy to lose between devices. Retained as the fallback if a workflow run fails mid-demo — both routes use the same `az` command, so no skill divergence.
+- **Single workflow with `workflow_dispatch` input** (e.g. `state: on|off`). Rejected for mobile UX: dropdown selection inside the GitHub mobile app is easy to misclick under demo stress. Two separately-named workflows turn each toggle into a single unambiguous tap.
+- **Built-in `Contributor` role on the Container App** instead of a custom role. Rejected: Contributor permits ingress/scale/secrets/delete on the resource, expanding the blast radius of a leaked OIDC token well beyond "flip auth". A custom role limited to auth read/write is the minimum that still lets the workflow succeed.
+- **Client secret in GitHub Secrets** instead of OIDC federated credentials. Rejected: long-lived secret, manual rotation, no per-run token scoping. OIDC adds one `az ad app federated-credential create` call to setup and removes the rotation burden permanently.
+- **`--enabled false`** as the "off" state. Rejected in favour of `AllowAnonymous`: re-enabling with `--enabled true` works but the auth config is more visibly "uninstalled", and signed-in users mid-demo stop receiving `X-MS-CLIENT-PRINCIPAL` headers. `AllowAnonymous` keeps everything wired and just relaxes the gate.
+
+**Key constraints:**
+
+- The custom role's `AssignableScopes` is the single Container App resource ID — not the resource group or subscription. Widening it defeats the minimum-permission rationale.
+- The federated credential subject is `repo:samww/WorkforceMapper:ref:refs/heads/main`. Workflows that need to run from other branches require an additional federated credential; do not relax to a broader subject.
+- The two workflows share `concurrency.group: demo-auth-toggle` to serialise a stray double-tap.
+- Resource names (`workforce-mapper`, `rg-workforce-mapper`) are hardcoded in the workflows because they match the deploy defaults and there is only one environment. A second environment would require parameterising both workflows and `scripts/deploy.ps1` consistently.
+- Setup is implemented in `scripts/setup_demo_auth_toggle.ps1` and must remain idempotent on re-run (matching the pattern in `scripts/setup_auth.ps1`).
+
+See `docs/build/demo-auth-toggle.md` for the full implementation spec.

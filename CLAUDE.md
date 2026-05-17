@@ -8,7 +8,7 @@ Closed-issue specs in `docs/build/issue-N-*.md` and `docs/build/user-test-feedba
 
 Read on demand:
 
-- `docs/adr/decisions.md` - ADRs 1, 3, 4, 6-11 (SQLite, tool-use, .NET, hard cap, risk model, integer percent, snapshot, projects-not-risk, pre-rendered prose). Flag any conflict before proceeding.
+- `docs/adr/decisions.md` - ADRs 1, 3, 4, 6-12 (SQLite, tool-use, .NET, hard cap, risk model, integer percent, snapshot, projects-not-risk, pre-rendered prose, demo auth toggle via GH Actions). Flag any conflict before proceeding.
 - `docs/build/risk-model.md` - coverage, application + product risk, risk reach, donor tiers.
 - `docs/build/monthly-allocation-snapshot.md` - when touching `MonthlyAllocationSnapshot`.
 - `docs/build/agent-system-prompt.md` - when touching `AgentService` or `WorkforceToolCatalog`.
