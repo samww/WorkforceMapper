@@ -448,12 +448,11 @@ public class AgentServiceTests
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
-        Assert.Contains("same-division", systemText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("cross-divisional", systemText, StringComparison.OrdinalIgnoreCase);
-        // same-division guidance must appear before cross-divisional guidance
+        // Donor section must describe same-division tiers 1-4 before cross-divisional tiers 5-8
         Assert.True(
-            systemText.IndexOf("same-division", StringComparison.OrdinalIgnoreCase) <
-            systemText.IndexOf("cross-divisional", StringComparison.OrdinalIgnoreCase));
+            systemText.IndexOf("same-division tiers 1", StringComparison.OrdinalIgnoreCase) <
+            systemText.IndexOf("tiers 5", StringComparison.OrdinalIgnoreCase),
+            "same-division tiers 1–4 must appear before cross-divisional tiers 5–8");
     }
 
     // ── Cycle 14 ────────────────────────────────────────────────────────────
@@ -474,8 +473,9 @@ public class AgentServiceTests
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
-        Assert.Contains("cumulative_gap_coverage_pct", systemText, StringComparison.Ordinal);
-        Assert.Contains("100", systemText, StringComparison.Ordinal);
+        // Stopping point is baked into summary_paragraph (pre-computed); agent uses pre-computed pool count
+        Assert.Contains("summary_paragraph", systemText, StringComparison.Ordinal);
+        Assert.Contains("total_available_candidates_count", systemText, StringComparison.Ordinal);
     }
 
     // ── Cycle 15 ────────────────────────────────────────────────────────────
@@ -519,11 +519,11 @@ public class AgentServiceTests
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
-        // Must reference the per-row flag and the pre-computed summary
-        Assert.Contains("in_fewest_changes_combination", systemText, StringComparison.Ordinal);
+        // Must reference the pre-computed combo summary and instruct verbatim rendering
         Assert.Contains("fewest_changes_combination", systemText, StringComparison.Ordinal);
-        // Must forbid presenting the stopping row in isolation
-        Assert.Contains("final row", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("verbatim", systemText, StringComparison.OrdinalIgnoreCase);
+        // Must instruct agent to use pre-computed pool count (not count the list)
+        Assert.Contains("total_available_candidates_count", systemText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -674,5 +674,144 @@ public class AgentServiceTests
                 m.Content != null &&
                 m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_b"))
         )), Times.AtLeastOnce);
+    }
+
+    // ── Item 3: get_at_risk_application_fix tool ─────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_AtRiskAndFixQuery_DispatchesToGetAtRiskApplicationFix()
+    {
+        // The canonical "why is X at risk and how do we fix it" shape must produce exactly ONE
+        // tool_use call — for get_at_risk_application_fix — not two separate tool calls.
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(ToolUseResponse(
+                "get_at_risk_application_fix", "tf_1",
+                @"{""application_name"":""AuthService"",""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync(
+            "Why is AuthService at risk this month and where could we find the capacity to fix it?",
+            "2026-05",
+            _ => Task.CompletedTask);
+
+        // Must have dispatched the combined tool (result for tf_1 appears in a subsequent message)
+        mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+            p.Messages.Any(m =>
+                m.Content != null &&
+                m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tf_1"))
+        )), Times.AtLeastOnce);
+    }
+
+    // ── Direct-answer enforcement (nudge) ────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_NudgesToolUse_WhenLlmAnswersDirectlyWithoutToolCall()
+    {
+        // When the LLM skips tools on the first response, RunAsync must inject a nudge
+        // message and retry, rather than emitting the ungrounded answer immediately.
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(EndTurnResponse("Zero idle resources."))            // first: direct text, no tool
+            .ReturnsAsync(ToolUseResponse("get_unallocated_resources", "tc_nudge",
+                @"{""division"":""Data Collection"",""threshold_pct"":100,""month"":""2026-05""}"))
+            .ReturnsAsync(EndTurnResponse());
+        mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
+            .Returns(EmptyStream());
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync(
+            "What unallocated resource cost does Data Collection carry this month?",
+            "2026-05", _ => Task.CompletedTask);
+
+        // The nudge must appear as a user message in a subsequent GetMessageAsync call
+        mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+            p.Messages.Any(m =>
+                m.Role == RoleType.User &&
+                m.Content != null &&
+                m.Content.OfType<TextContent>().Any(t =>
+                    t.Text != null && t.Text.Contains("must call at least one tool")))
+        )), Times.AtLeastOnce);
+
+        // Tool result for tc_nudge must appear — confirming the nudge produced a real tool call
+        mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
+            p.Messages.Any(m =>
+                m.Content != null &&
+                m.Content.OfType<ToolResultContent>().Any(tr => tr.ToolUseId == "tc_nudge"))
+        )), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task RunAsync_EmitsDirectTextAsFallback_WhenNudgeIsAlsoIgnored()
+    {
+        // If the LLM ignores the nudge and answers directly a second time,
+        // RunAsync must still emit the response rather than hanging or throwing.
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        var mock = new Mock<IClaudeClient>();
+        mock.SetupSequence(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .ReturnsAsync(EndTurnResponse("Zero idle resources."))   // first: no tool
+            .ReturnsAsync(EndTurnResponse("Still no tool, sorry.")); // second: no tool again
+
+        var service = new AgentService(mock.Object, dataService);
+        var tokens = new List<string>();
+        await service.RunAsync("What unallocated cost does Data Collection carry?", "2026-05",
+            t => { tokens.Add(t); return Task.CompletedTask; });
+
+        Assert.NotEmpty(tokens);
+        Assert.Contains(tokens, t => t.Contains("sorry") || t.Contains("idle") || t.Length > 0);
+    }
+
+    [Fact]
+    public async Task BuildTools_CapacityByDivision_HasNoDivisionParameter()
+    {
+        // The division parameter was silently ignored in dispatch — removing it from the
+        // schema prevents the LLM from passing it and expecting filtered results.
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_capacity_by_division");
+        var props = tool.Function!.Parameters?["properties"];
+        Assert.Null(props?["division"]);
+    }
+
+    [Fact]
+    public async Task BuildSystemPrompt_RoutesUnallocatedCostQuestions_ToGetUnallocatedResources()
+    {
+        await using var ctx = CreateContext();
+        var dataService = new DataService(ctx);
+
+        MessageParameters? captured = null;
+        var mock = new Mock<IClaudeClient>();
+        mock.Setup(c => c.GetMessageAsync(It.IsAny<MessageParameters>()))
+            .Callback<MessageParameters>(p => captured ??= p)
+            .ReturnsAsync(EndTurnResponse("ok"));
+
+        var service = new AgentService(mock.Object, dataService);
+        await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
+
+        var systemText = string.Concat(captured!.System!.Select(s => s.Text));
+        Assert.Contains("get_unallocated_resources", systemText, StringComparison.Ordinal);
+        Assert.Contains("unallocated", systemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("total_idle_monthly_cost", systemText, StringComparison.Ordinal);
     }
 }

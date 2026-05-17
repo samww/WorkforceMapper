@@ -103,13 +103,27 @@ public class ApplicationRiskReporter(WorkforceDbContext context)
                     })
                     .OrderBy(d => d.name)
                     .ToList();
+                var totalArr = products.Sum(p => p.arr_usd);
+                var n = products.Count;
+                var riskReason = risk switch
+                {
+                    RiskLevel.High => $"Coverage {coverage:F1} FTE is {app.MinSupportFte - coverage:F1} FTE below the minimum {app.MinSupportFte:F1} FTE (recommended {app.RecommendedSupportFte:F1}); risk classification: high.",
+                    RiskLevel.Medium => $"Coverage {coverage:F1} FTE meets the minimum {app.MinSupportFte:F1} FTE but is {app.RecommendedSupportFte - coverage:F1} FTE below the recommended {app.RecommendedSupportFte:F1} FTE; risk classification: medium.",
+                    _ => $"Coverage {coverage:F1} FTE is at or above the recommended {app.RecommendedSupportFte:F1} FTE; risk classification: low."
+                };
+                var productWord = n == 1 ? "product" : "products";
+                var productList = n > 0 ? $": {string.Join(", ", products.Select(p => p.name))}." : ".";
+                var depSummary = $"Exposes ${(double)totalArr / 1_000_000:F1}M ARR across {n} {productWord}{productList}";
+
                 return new ApplicationRiskDto(
                     app.Id, app.Name, division,
                     app.MinSupportFte, app.RecommendedSupportFte,
                     coverage, risk.ToString().ToLowerInvariant(),
                     products, transitiveDependentApps,
-                    products.Sum(p => p.arr_usd),
-                    transitiveDependentApps.Count
+                    totalArr,
+                    transitiveDependentApps.Count,
+                    riskReason,
+                    depSummary
                 );
             })
             .OrderBy(a => a.id)

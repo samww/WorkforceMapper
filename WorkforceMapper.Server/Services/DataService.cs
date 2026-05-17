@@ -233,4 +233,14 @@ public class DataService(WorkforceDbContext context)
     public async Task<List<ApplicationRiskDto>> GetApplicationsAsync(
         string month, int? applicationId = null, string? applicationName = null) =>
         await new ApplicationRiskReporter(context).ReportAsync(month, applicationId, applicationName);
+
+    public async Task<AtRiskApplicationFixDto?> GetAtRiskApplicationFixAsync(
+        int? applicationId, string? applicationName, string month)
+    {
+        var apps = await GetApplicationsAsync(month, applicationId, applicationName);
+        var app  = apps.FirstOrDefault();
+        if (app is null) return null;
+        var donor = await GetDonorCandidatesAsync(applicationId ?? app.id, applicationName, month);
+        return AtRiskApplicationFixDto.Assemble(app, donor);
+    }
 }

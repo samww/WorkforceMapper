@@ -40,6 +40,24 @@ public record ProductRiskDto(
 
 public record ProjectAllocationDto(int id, string name, List<string> divisions, double allocation_fte);
 
+public record AtRiskApplicationFixDto(
+    ApplicationRiskDto application,
+    FewestChangesCombinationSummary? fewest_changes_combination,
+    int candidates_pipeline_count,
+    List<CrossDivisionalSignoff> cross_divisional_signoffs_required,
+    string cross_divisional_signoffs_summary
+)
+{
+    public static AtRiskApplicationFixDto Assemble(ApplicationRiskDto app, DonorCandidatesResult? donor) =>
+        new(
+            app,
+            donor?.FewestChangesCombination,
+            donor?.TotalAvailableCandidatesCount ?? 0,
+            donor?.FewestChangesCombination?.CrossDivisionalSignoffsRequired ?? [],
+            donor?.FewestChangesCombination?.CrossDivisionalSignoffsSummary ?? "No cross-divisional sign-off required."
+        );
+}
+
 public record ApplicationRiskDto(
     int id,
     string name,
@@ -51,5 +69,7 @@ public record ApplicationRiskDto(
     List<ProductRefDto> dependent_products,
     List<ContributingAppDto> transitive_dependent_apps,
     decimal total_dependent_arr_usd,
-    int dependent_app_count
+    int dependent_app_count,
+    string risk_reason,
+    string dependent_products_summary
 );

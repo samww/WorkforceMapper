@@ -426,9 +426,8 @@ public class DataServiceTests
         Assert.NotNull(result);
         // AuthService gap = 4.0 FTE; total donor pool = 1.0 FTE → gap not closeable, no combo
         Assert.Null(result.FewestChangesCombination);
-        Assert.Equal(3, result.Candidates.Count);
-        Assert.Equal(2, result.Candidates.Select(c => c.ResourceName).Distinct().Count());
-        Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
+        Assert.Empty(result.Candidates);
+        Assert.Equal(3, result.TotalAvailableCandidatesCount);
     }
 
     // Cycle 5 — Inactive resources for the queried month are excluded
@@ -460,7 +459,14 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_CrossDivisionalResources_AppearAsTier6_WithAlignmentFlag()
     {
+        // Custom PE target (min=0.90): PE project (0.50, T4) + Analytics project (0.40, T8) = 0.90 → both in combo.
+        // Both padded to 100% → no idle FTE.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 611, Name = "CrossDivProjApp", MinSupportFte = 0.90, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 611, Name = "CrossDivProjApp - Support", ActivityType = "Support", ApplicationId = 611, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var peResource = MakePeResource("DC00004a", "PE Tier4 Donor");
         var analyticsResource = new Resource
         {
             ResourceId = "DC00004", Name = "Dave Analytics", ResourceType = "Employee",
@@ -469,14 +475,19 @@ public class DataServiceTests
             Jan = 0, Feb = 0, Mar = 0, Apr = 0, May = 1,
             Jun = 0, Jul = 0, Aug = 0, Sep = 0, Oct = 0, Nov = 0, Dec = 0
         };
-        context.Resources.Add(analyticsResource);
+        context.Resources.AddRange(peResource, analyticsResource);
         await context.SaveChangesAsync();
-        // Activity 19 = "P07 SegmentBuilder Enhancement - Project" (Analytics division)
-        context.Mappings.Add(new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 40 });
+        // Activity 7 = PE project; Activity 19 = Analytics project
+        // Activity 6 / Activity 9 pad each to 100% → no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = peResource.Id,       ActivityId = 7,  Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = peResource.Id,       ActivityId = 6,  Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 9,  Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(611, null, "2026-05");
 
         Assert.NotNull(result);
         var row = Assert.Single(result.Candidates, c => c.ResourceName == "Dave Analytics" && c.ActivityType == "Project");
@@ -506,16 +517,23 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_ReturnsMinorChangesAllocations_InAppDivision()
     {
+        // Custom PE app with gap=0.25 so Bob's 25% Minor Changes closes it and lands in combo.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 500, Name = "MinChgTestApp", MinSupportFte = 0.25, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 500, Name = "MinChgTestApp - Support", ActivityType = "Support", ApplicationId = 500, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var resource = MakePeResource("DC00002", "Bob MinorChg");
         context.Resources.Add(resource);
         await context.SaveChangesAsync();
-        // Activity 35 = "SurveyEngine - Minor Changes" (Platform Engineering)
-        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 35, Month = "2026-05", Percent = 25 });
+        // Activity 35 = "SurveyEngine - Minor Changes" (PE); Activity 6 pads to 100% → no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = resource.Id, ActivityId = 35, Month = "2026-05", Percent = 25 },
+            new Mapping { ResourceId = resource.Id, ActivityId = 6,  Month = "2026-05", Percent = 75 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(500, null, "2026-05");
 
         Assert.NotNull(result);
         Assert.Single(result.Candidates, c =>
@@ -529,17 +547,23 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_ReturnsProjectAllocations_InAppDivision()
     {
+        // Custom PE app with gap=0.30 so Alice's 30% project closes it and lands in combo.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 501, Name = "ProjTestApp", MinSupportFte = 0.30, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 501, Name = "ProjTestApp - Support", ActivityType = "Support", ApplicationId = 501, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var resource = MakePeResource("DC00001", "Alice Project");
         context.Resources.Add(resource);
         await context.SaveChangesAsync();
-        // Activity 7 = "P01 CoreDataWarehouse Cloud Migration - Project" (Platform Engineering)
-        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 7, Month = "2026-05", Percent = 30 });
+        // Activity 7 = "P01 CoreDataWarehouse Cloud Migration - Project" (PE); Activity 6 pads to 100% → no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = resource.Id, ActivityId = 7, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = resource.Id, ActivityId = 6, Month = "2026-05", Percent = 70 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        // ApplicationId 4 = AuthService (Platform Engineering)
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(501, null, "2026-05");
 
         Assert.NotNull(result);
         Assert.Single(result.Candidates, c =>
@@ -553,24 +577,30 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_SortsByAllocationFte_Descending()
     {
+        // Custom PE app with gap=0.55 so both donors (0.40+0.15) are needed and in combo.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 502, Name = "SortTestApp", MinSupportFte = 0.55, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 502, Name = "SortTestApp - Support", ActivityType = "Support", ApplicationId = 502, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         // small resource at 15%, large resource at 40% — large FTE should sort first
         var small = new Resource { ResourceId = "DC00007a", Name = "Small Donor", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 5000m,  Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
         var large = new Resource { ResourceId = "DC00007b", Name = "Large Donor",  ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
         context.Resources.AddRange(small, large);
         await context.SaveChangesAsync();
-        // Activity 7 = PE project activity
+        // Activity 6 = ObsStack Support pads each to 100% → no idle FTE
         context.Mappings.AddRange(
             new Mapping { ResourceId = small.Id, ActivityId = 7, Month = "2026-05", Percent = 15 },
-            new Mapping { ResourceId = large.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
+            new Mapping { ResourceId = small.Id, ActivityId = 6, Month = "2026-05", Percent = 85 },
+            new Mapping { ResourceId = large.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = large.Id, ActivityId = 6, Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(502, null, "2026-05");
 
         Assert.NotNull(result);
-        Assert.True(result.Candidates.Count >= 2);
-        var ourTwo = result.Candidates.Where(c => (c.ResourceName is "Small Donor" or "Large Donor") && c.ActivityType == "Project").ToList();
+        var ourTwo = result.Candidates.Where(c => c.ResourceName is "Small Donor" or "Large Donor").ToList();
         Assert.Equal(2, ourTwo.Count);
         Assert.Equal("Large Donor", ourTwo[0].ResourceName);
         Assert.Equal("Small Donor", ourTwo[1].ResourceName);
@@ -580,46 +610,49 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_GapCoveragePct_ReflectsAllocationFractionOfGap()
     {
+        // Custom PE app with gap=0.40. Donor at 40% project exactly closes it (single-row combo).
+        // GapCoveragePct = 0.40 / 0.40 * 100 = 100.0. Cumulative fields equal per-row values.
         await using var context = CreateContext();
-        // AuthService min = 4.0 FTE, no existing support → gap = 4.0 FTE
-        // donor at 40% → 0.40 FTE → covers 10% of gap
+        context.Applications.Add(new Application { Id = 503, Name = "GapPctTestApp", MinSupportFte = 0.40, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 503, Name = "GapPctTestApp - Support", ActivityType = "Support", ApplicationId = 503, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var donor = MakePeResource("DC00008", "Gap Donor");
         context.Resources.Add(donor);
         await context.SaveChangesAsync();
-        // Activity 7 = PE project (40%); Activity 6 = ObsStack Support (60%) pads to 100% → no idle FTE
+        // Activity 7 = PE project (40%); Activity 6 = ObsStack Support pads to 100% → no idle FTE
         context.Mappings.AddRange(
             new Mapping { ResourceId = donor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
             new Mapping { ResourceId = donor.Id, ActivityId = 6, Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(503, null, "2026-05");
 
         Assert.NotNull(result);
-        // Only the project row — no idle row since donor is at 100% total allocation
         var row = Assert.Single(result.Candidates, c => c.ResourceName == "Gap Donor" && c.ActivityType == "Project");
         Assert.Equal(0.40, row.AllocationFte, precision: 5);
-        Assert.Equal(10.0, row.GapCoveragePct, precision: 3); // 0.40 / 4.0 * 100
-        // Single-row cumulative fields equal the per-row values
+        Assert.Equal(100.0, row.GapCoveragePct, precision: 3); // 0.40 / 0.40 * 100
+        // Single-row combo: cumulative fields equal the per-row values
         Assert.Equal(0.40, row.CumulativeFte, precision: 5);
-        Assert.Equal(10.0, row.CumulativeGapCoveragePct, precision: 3);
+        Assert.Equal(100.0, row.CumulativeGapCoveragePct, precision: 3);
     }
 
     // cumulative_fte and cumulative_gap_coverage_pct accumulate in sort order (largest FTE first)
     [Fact]
     public async Task GetDonorCandidates_CumulativeFields_AccumulateInSortOrder()
     {
+        // Custom PE app with gap=1.0. Large (60%) + Small (40%) exactly close it.
+        // Sorted largest-FTE-first: large=0.60 (60% coverage), small=1.00 (100% coverage).
         await using var context = CreateContext();
-        // AuthService min = 4.0 FTE, no support → gap = 4.0 FTE
-        // small resource at 40% → 0.40 FTE → 10% gap coverage
-        // large resource at 60% → 0.60 FTE → 15% gap coverage
-        // Sorted largest-FTE-first: large (60%) then small (40%); cumulative after row 2 = 1.0 FTE = 25%
+        context.Applications.Add(new Application { Id = 504, Name = "CumulTestApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 504, Name = "CumulTestApp - Support", ActivityType = "Support", ApplicationId = 504, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var small = new Resource { ResourceId = "DC00009a", Name = "Cumul Small", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 5000m,  Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
         var large = new Resource { ResourceId = "DC00009b", Name = "Cumul Large", ResourceType = "Employee", Company = "Test Co", Seniority = "Analyst", RoleType = "Developer", Division = "Platform Engineering", Country = "UK", MonthlyRate = 13000m, Jan=0,Feb=0,Mar=0,Apr=0,May=1,Jun=0,Jul=0,Aug=0,Sep=0,Oct=0,Nov=0,Dec=0 };
         context.Resources.AddRange(small, large);
         await context.SaveChangesAsync();
-        // Activity 7 = PE project; Activity 6 = ObsStack Support pads each to 100% → no idle FTE
-        // ObsStack coverage = 0.60 + 0.40 = 1.0 FTE < 2.0 recommended → no surplus row
         context.Mappings.AddRange(
             new Mapping { ResourceId = small.Id, ActivityId = 7, Month = "2026-05", Percent = 40 },
             new Mapping { ResourceId = small.Id, ActivityId = 6, Month = "2026-05", Percent = 60 },
@@ -628,7 +661,7 @@ public class DataServiceTests
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(504, null, "2026-05");
 
         Assert.NotNull(result);
         var ourTwo = result.Candidates.Where(c => c.ResourceName is "Cumul Small" or "Cumul Large").ToList();
@@ -637,9 +670,9 @@ public class DataServiceTests
         var smallRow = ourTwo[1];
 
         Assert.Equal(0.60, largeRow.CumulativeFte, precision: 5);
-        Assert.Equal(15.0, largeRow.CumulativeGapCoveragePct, precision: 3);
+        Assert.Equal(60.0, largeRow.CumulativeGapCoveragePct, precision: 3);
         Assert.Equal(1.00, smallRow.CumulativeFte, precision: 5);
-        Assert.Equal(25.0, smallRow.CumulativeGapCoveragePct, precision: 3);
+        Assert.Equal(100.0, smallRow.CumulativeGapCoveragePct, precision: 3);
     }
 
     // ── Issue #29: six-tier donor candidate pipeline ─────────────────────────
@@ -648,7 +681,12 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_Tier5678_RequiresCrossDivisionalAlignment_True()
     {
+        // Custom PE app with gap=1.0; PE donor (50%) + Analytics donor (50%) both needed → both in combo
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 606, Name = "CrossDivApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 606, Name = "CrossDivApp - Support", ActivityType = "Support", ApplicationId = 606, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var peResource       = MakePeResource("T4A00001", "PE Tier3 Donor");
         var analyticsResource = new Resource
         {
@@ -659,17 +697,20 @@ public class DataServiceTests
         };
         context.Resources.AddRange(peResource, analyticsResource);
         await context.SaveChangesAsync();
-        // Activity 7 = PE project (tier 3); Activity 19 = Analytics project (tier 6)
+        // Activity 7 = PE project (tier 4); Activity 19 = Analytics project (tier 8)
+        // Activity 6 / Activity 9 pad each to 100% → no idle FTE
         context.Mappings.AddRange(
-            new Mapping { ResourceId = peResource.Id,       ActivityId = 7,  Month = "2026-05", Percent = 50 },
-            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 50 });
+            new Mapping { ResourceId = peResource.Id,        ActivityId = 7,  Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = peResource.Id,        ActivityId = 6,  Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 9,  Month = "2026-05", Percent = 50 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(606, null, "2026-05");
 
         Assert.NotNull(result);
-        var peRow       = Assert.Single(result.Candidates, c => c.ResourceName == "PE Tier3 Donor" && c.ActivityType == "Project");
+        var peRow        = Assert.Single(result.Candidates, c => c.ResourceName == "PE Tier3 Donor"       && c.ActivityType == "Project");
         var analyticsRow = Assert.Single(result.Candidates, c => c.ResourceName == "Analytics Tier6 Donor" && c.ActivityType == "Project");
         Assert.False(peRow.RequiresCrossDivisionalAlignment);
         Assert.True(analyticsRow.RequiresCrossDivisionalAlignment);
@@ -679,19 +720,27 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_ResourceOnTargetSupport_ExcludedFromAllTiers()
     {
+        // Custom PE app (min=1.10); supporter on that app's Support (30%, 70% idle) + project donor (40%).
+        // Combo: supporter idle (0.70, T1, existing contributor) + project donor (0.40, T4) = 1.10 FTE.
         await using var context = CreateContext();
-        var supporter      = MakePeResource("T6A00001", "Target Supporter");
-        var projectDonor   = MakePeResource("T6A00002", "PE Project Donor");
+        context.Applications.Add(new Application { Id = 612, Name = "SupportExclusionApp", MinSupportFte = 1.10, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 612, Name = "SupportExclusionApp - Support", ActivityType = "Support", ApplicationId = 612, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var supporter    = MakePeResource("T6A00001", "Target Supporter");
+        var projectDonor = MakePeResource("T6A00002", "PE Project Donor");
         context.Resources.AddRange(supporter, projectDonor);
         await context.SaveChangesAsync();
-        // Activity 5 = AuthService - Support (the target); Activity 7 = PE project
+        // Supporter at 30% on custom app's Support → existing contributor, 70% idle
+        // Project donor at 40% on PE project; Activity 6 pads to 100% → no idle FTE
         context.Mappings.AddRange(
-            new Mapping { ResourceId = supporter.Id,    ActivityId = 5, Month = "2026-05", Percent = 30 },
-            new Mapping { ResourceId = projectDonor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 612, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = projectDonor.Id, ActivityId = 7,   Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = projectDonor.Id, ActivityId = 6,   Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(612, null, "2026-05");
 
         Assert.NotNull(result);
         // Supporter has 70% idle → appears in T1 as an existing contributor (increase not add)
@@ -728,21 +777,27 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_Tier2_OnePercentAboveRecommended_YieldsSurplusFteOnly()
     {
-        // Custom PE app: recommended = 0.50; resource at 51% → coverage = 0.51 → surplus = 0.01
-        // donatable FTE = 0.51 * (0.01 / 0.51) = 0.01
+        // SlightSurplusApp: recommended=0.50; resource at 51% → coverage=0.51 → surplus=0.01
+        // Custom target PE app (min=0.01) closes the gap with just that 0.01 FTE surplus row.
+        // Resource padded to 100% → no idle FTE (idle would surface before surplus).
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 100, Name = "SlightSurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
         context.Activities.Add(new Activity { Id = 200, Name = "SlightSurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        context.Applications.Add(new Application { Id = 607, Name = "TinyGapApp", MinSupportFte = 0.01, RecommendedSupportFte = 0.001 });
+        context.Activities.Add(new Activity { Id = 607, Name = "TinyGapApp - Support", ActivityType = "Support", ApplicationId = 607, Division = "Platform Engineering" });
         await context.SaveChangesAsync();
 
         var resource = MakePeResource("T5B00001", "OneAbove Resource");
         context.Resources.Add(resource);
         await context.SaveChangesAsync();
-        context.Mappings.Add(new Mapping { ResourceId = resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 });
+        // 51% on SlightSurplusApp Support + 49% pad → 100% allocated, no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 },
+            new Mapping { ResourceId = resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 49 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(607, null, "2026-05");
 
         Assert.NotNull(result);
         var row = Assert.Single(result.Candidates, c => c.ResourceName == "OneAbove Resource" && c.ActivityType == "Support");
@@ -754,25 +809,33 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_Tier2_AppearsBefore_Tier3()
     {
+        // SurplusApp: recommended=0.50; Tier1 Donor at 51% → surplus=0.01 FTE.
+        // Custom target PE app (min=0.26): surplus (0.01) + minor changes (0.25) = 0.26 → both in combo.
+        // Both padded to 100% → no idle FTE (idle would surface before surplus/minor-changes).
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
         context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        context.Applications.Add(new Application { Id = 608, Name = "Tier2Tier3App", MinSupportFte = 0.26, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 608, Name = "Tier2Tier3App - Support", ActivityType = "Support", ApplicationId = 608, Division = "Platform Engineering" });
         await context.SaveChangesAsync();
 
         var tier1Resource = MakePeResource("T1B00001", "Tier1 Donor");
         var tier2Resource = MakePeResource("T1B00002", "Tier2 Donor");
         context.Resources.AddRange(tier1Resource, tier2Resource);
         await context.SaveChangesAsync();
+        // Activity 6 pads each to 100% → no idle FTE
         context.Mappings.AddRange(
-            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 }, // surplus support
-            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 }); // Minor Changes
+            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 },
+            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 49 },
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 },
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 75 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(608, null, "2026-05");
 
         Assert.NotNull(result);
-        // "Tier1 Donor" is a surplus support row (new tier 2); "Tier2 Donor" is minor-changes (new tier 3)
+        // "Tier1 Donor" is a surplus support row (tier 2); "Tier2 Donor" is minor-changes (tier 3)
         var tier1Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier1 Donor" && c.ActivityType == "Support");
         var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 Donor" && c.ActivityType == "Minor Changes");
         Assert.True(tier1Idx >= 0 && tier2Idx >= 0, "Both candidates must appear");
@@ -783,19 +846,28 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_Tier3_AppearsBefore_Tier4()
     {
+        // Custom PE target app (min=0.55): minor changes (0.25) + project (0.30) = 0.55 → both in combo.
+        // Both padded to 100% → no idle FTE.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 609, Name = "Tier3Tier4App", MinSupportFte = 0.55, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 609, Name = "Tier3Tier4App - Support", ActivityType = "Support", ApplicationId = 609, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var tier2Resource = MakePeResource("T2B00001", "Tier2 MinorChg");
         var tier3Resource = MakePeResource("T2B00002", "Tier3 Project");
         context.Resources.AddRange(tier2Resource, tier3Resource);
         await context.SaveChangesAsync();
         // Activity 35 = SurveyEngine - Minor Changes (PE); Activity 7 = PE project
+        // Activity 6 pads each to 100% → no idle FTE
         context.Mappings.AddRange(
             new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35, Month = "2026-05", Percent = 25 },
-            new Mapping { ResourceId = tier3Resource.Id, ActivityId = 7,  Month = "2026-05", Percent = 30 });
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 6,  Month = "2026-05", Percent = 75 },
+            new Mapping { ResourceId = tier3Resource.Id, ActivityId = 7,  Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = tier3Resource.Id, ActivityId = 6,  Month = "2026-05", Percent = 70 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(609, null, "2026-05");
 
         Assert.NotNull(result);
         var tier2Idx = result.Candidates.FindIndex(c => c.ResourceName == "Tier2 MinorChg");
@@ -808,8 +880,13 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_Tiers1234_AppearBefore_Tiers5678()
     {
-        // Same-div Tier-4 (PE Project) must appear before cross-div Tier-8 (Analytics Project)
+        // Custom PE target (min=0.80): PE project (0.40, T4) + Analytics project (0.40, T8) = 0.80 → both in combo.
+        // Both padded to 100% → no idle FTE.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 610, Name = "CrossTierApp", MinSupportFte = 0.80, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 610, Name = "CrossTierApp - Support", ActivityType = "Support", ApplicationId = 610, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var peResource = MakePeResource("T3B00001", "PE Project Tier3");
         var analyticsResource = new Resource
         {
@@ -820,13 +897,17 @@ public class DataServiceTests
         };
         context.Resources.AddRange(peResource, analyticsResource);
         await context.SaveChangesAsync();
+        // Activity 7 = PE project; Activity 19 = Analytics project
+        // Activity 6 / Activity 9 pad each to 100% → no idle FTE
         context.Mappings.AddRange(
             new Mapping { ResourceId = peResource.Id,        ActivityId = 7,  Month = "2026-05", Percent = 40 },
-            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 40 });
+            new Mapping { ResourceId = peResource.Id,        ActivityId = 6,  Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 19, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = analyticsResource.Id, ActivityId = 9,  Month = "2026-05", Percent = 60 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(610, null, "2026-05");
 
         Assert.NotNull(result);
         var sameDivIdx  = result.Candidates.FindIndex(c => c.ResourceName == "PE Project Tier3");
@@ -839,36 +920,37 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_CumulativeFte_AccumulatesAcrossTierBoundary()
     {
-        // Tier-2 surplus support: donatable = 0.01 FTE
-        // Tier-3 Minor Changes: 0.25 FTE
+        // Tier-2 surplus support: donatable = 0.01 FTE; Tier-3 Minor Changes: 0.25 FTE
         // CumulativeFte at tier-3 row = 0.01 + 0.25 = 0.26
+        // Custom PE target (min=0.26) so both rows land in the fewest-changes combo.
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.3, RecommendedSupportFte = 0.5 });
         context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        context.Applications.Add(new Application { Id = 605, Name = "CumulBoundaryApp", MinSupportFte = 0.26, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 605, Name = "CumulBoundaryApp - Support", ActivityType = "Support", ApplicationId = 605, Division = "Platform Engineering" });
         await context.SaveChangesAsync();
 
         var tier1Resource = MakePeResource("T7A00001", "Tier1 Cumul");
         var tier2Resource = MakePeResource("T7A00002", "Tier2 Cumul");
         context.Resources.AddRange(tier1Resource, tier2Resource);
         await context.SaveChangesAsync();
-        // ObsStack filler (Activity 6, recommended=2.0) pads both to 100% → no idle FTE
-        // ObsStack total coverage = 0.49 + 0.75 = 1.24 FTE < 2.0 recommended → no surplus row
+        // Activity 6 pads both to 100% → no idle FTE
         context.Mappings.AddRange(
             new Mapping { ResourceId = tier1Resource.Id, ActivityId = 200, Month = "2026-05", Percent = 51 }, // donatable = 0.01
-            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 49 }, // pad to 100%
+            new Mapping { ResourceId = tier1Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 49 },
             new Mapping { ResourceId = tier2Resource.Id, ActivityId = 35,  Month = "2026-05", Percent = 25 }, // 0.25 FTE
-            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 75 }); // pad to 100%
+            new Mapping { ResourceId = tier2Resource.Id, ActivityId = 6,   Month = "2026-05", Percent = 75 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(605, null, "2026-05");
 
         Assert.NotNull(result);
         var tier1Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier1 Cumul" && c.ActivityType == "Support");
         var tier2Row = Assert.Single(result.Candidates, c => c.ResourceName == "Tier2 Cumul" && c.ActivityType == "Minor Changes");
         var tier1Idx = result.Candidates.IndexOf(tier1Row);
         var tier2Idx = result.Candidates.IndexOf(tier2Row);
-        Assert.True(tier1Idx < tier2Idx, "Tier-1 must precede tier-2 in the list");
+        Assert.True(tier1Idx < tier2Idx, "Tier-2 must precede tier-3 in the list");
         Assert.Equal(0.01, tier1Row.AllocationFte, precision: 5);
         Assert.Equal(0.01 + 0.25, tier2Row.CumulativeFte, precision: 5);
     }
@@ -921,17 +1003,21 @@ public class DataServiceTests
     public async Task GetDonorCandidates_IdleResource_SurfacesWithActivityTypeIdle()
     {
         // PE resource at 57% total allocation → 43% idle → AllocationFte = 0.43
-        // AuthService gap = 4.0 FTE; 0.43 FTE won't close it → no combo, row lands in Candidates
+        // Custom PE target (min=0.43) so Emily's idle row closes the gap and lands in combo.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 601, Name = "IdleTestApp", MinSupportFte = 0.43, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 601, Name = "IdleTestApp - Support", ActivityType = "Support", ApplicationId = 601, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var idleResource = MakePeResource("I1A00001", "Emily Idle");
         context.Resources.Add(idleResource);
         await context.SaveChangesAsync();
-        // Activity 35 = SurveyEngine - Minor Changes (PE) — gives her 57% total allocation
+        // Activity 35 = SurveyEngine - Minor Changes (PE) → 57% allocation, 43% idle
         context.Mappings.Add(new Mapping { ResourceId = idleResource.Id, ActivityId = 35, Month = "2026-05", Percent = 57 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(601, null, "2026-05");
 
         Assert.NotNull(result);
         var idleRow = Assert.Single(result.Candidates, c => c.ResourceName == "Emily Idle" && c.ActivityType == "Idle");
@@ -945,21 +1031,26 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_ResourceOnTargetSupport_ExcludedFromIdleTier()
     {
-        // Supporter is on AuthService Support at 30% with 70% idle → now included in T1 with IsExistingContributor=true
-        // Regular Donor also appears; both show up in idle tier
+        // Custom PE app (min=1.30): supporter idle (0.70, existing contributor) + regular idle (0.60) = 1.30 → both in combo.
+        // Regular Donor has 40% project + 60% idle; supporter has 30% on custom app Support + 70% idle.
         await using var context = CreateContext();
-        var supporter   = MakePeResource("I3A00001", "Target Support Idle");
+        context.Applications.Add(new Application { Id = 613, Name = "IdleExclusionApp", MinSupportFte = 1.30, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 613, Name = "IdleExclusionApp - Support", ActivityType = "Support", ApplicationId = 613, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var supporter    = MakePeResource("I3A00001", "Target Support Idle");
         var projectDonor = MakePeResource("I3A00002", "Regular Donor");
         context.Resources.AddRange(supporter, projectDonor);
         await context.SaveChangesAsync();
-        // Activity 5 = AuthService - Support (the target); supporter at 30% → 70% idle, existing contributor
+        // Supporter at 30% on custom app Support → 70% idle, existing contributor
+        // Regular Donor at 40% on PE project → 60% idle
         context.Mappings.AddRange(
-            new Mapping { ResourceId = supporter.Id,    ActivityId = 5, Month = "2026-05", Percent = 30 },
-            new Mapping { ResourceId = projectDonor.Id, ActivityId = 7, Month = "2026-05", Percent = 40 });
+            new Mapping { ResourceId = supporter.Id,    ActivityId = 613, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = projectDonor.Id, ActivityId = 7,   Month = "2026-05", Percent = 40 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(613, null, "2026-05");
 
         Assert.NotNull(result);
         var supporterRow = Assert.Single(result.Candidates, c => c.ResourceName == "Target Support Idle" && c.ActivityType == "Idle");
@@ -971,8 +1062,13 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_CrossDivisionalIdleResource_HasAlignmentFlagTrue()
     {
-        // Analytics resource at 60% allocation → 40% idle; AuthService is PE → cross-divisional
+        // Analytics resource at 60% → 40% idle; target is a PE app → cross-divisional.
+        // Custom PE target (min=0.40) so the cross-div idle row closes the gap and lands in combo.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 602, Name = "CrossDivIdleApp", MinSupportFte = 0.40, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 602, Name = "CrossDivIdleApp - Support", ActivityType = "Support", ApplicationId = 602, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var analyticsResource = new Resource
         {
             ResourceId = "I4A00001", Name = "Analytics Idle Cross",
@@ -987,7 +1083,7 @@ public class DataServiceTests
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(602, null, "2026-05");
 
         Assert.NotNull(result);
         var idleRow = Assert.Single(result.Candidates, c => c.ResourceName == "Analytics Idle Cross" && c.ActivityType == "Idle");
@@ -999,15 +1095,20 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_ZeroMappingResource_SurfacesAsFullyIdleTier1()
     {
-        // A PE resource with NO mappings at all has 100% idle FTE → must appear as Idle candidate
+        // A PE resource with NO mappings has 100% idle FTE.
+        // Custom PE target (min=1.0) so the idle row closes the gap and lands in combo.
         await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 603, Name = "ZeroMappingApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 603, Name = "ZeroMappingApp - Support", ActivityType = "Support", ApplicationId = 603, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
         var unmapped = MakePeResource("I2A00001", "Unmapped PE");
         context.Resources.Add(unmapped);
         await context.SaveChangesAsync();
         // Intentionally add NO mappings for this resource
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(603, null, "2026-05");
 
         Assert.NotNull(result);
         var row = Assert.Single(result.Candidates, c => c.ResourceName == "Unmapped PE");
@@ -1021,29 +1122,31 @@ public class DataServiceTests
     [Fact]
     public async Task GetDonorCandidates_IdleTier_AppearsBefore_SurplusSupportTier()
     {
-        // PE resource at 60% allocation → 40% idle (Tier 1)
-        // PE resource at 100% on BigSurplusApp (recommended=0) → 100% surplus Support (Tier 2)
-        // Idle row must sort before the surplus Support row in the candidates list
+        // Idle PE (40% idle, T1) + Surplus PE (100% surplus, T2) = 1.40 FTE.
+        // Custom PE target (min=1.40) so both rows are needed and land in combo.
         await using var context = CreateContext();
         context.Applications.Add(new Application { Id = 100, Name = "SurplusApp", MinSupportFte = 0.0, RecommendedSupportFte = 0.0 });
         context.Activities.Add(new Activity { Id = 200, Name = "SurplusApp - Support", ActivityType = "Support", ApplicationId = 100, Division = "Platform Engineering" });
+        context.Applications.Add(new Application { Id = 604, Name = "IdleBeforeSurplusApp", MinSupportFte = 1.40, RecommendedSupportFte = 0.1 });
+        context.Activities.Add(new Activity { Id = 604, Name = "IdleBeforeSurplusApp - Support", ActivityType = "Support", ApplicationId = 604, Division = "Platform Engineering" });
         await context.SaveChangesAsync();
 
-        var idleResource   = MakePeResource("I6A00001", "Idle PE Resource");
+        var idleResource    = MakePeResource("I6A00001", "Idle PE Resource");
         var surplusResource = MakePeResource("I6A00002", "Surplus PE Resource");
         context.Resources.AddRange(idleResource, surplusResource);
         await context.SaveChangesAsync();
-        // idleResource: 60% on a project → 40% idle
+        // idleResource: 60% on PE project → 40% idle (T1)
+        // surplusResource: 100% on SurplusApp (recommended=0) → 100% surplus Support (T2)
         context.Mappings.AddRange(
-            new Mapping { ResourceId = idleResource.Id,   ActivityId = 7,   Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = idleResource.Id,    ActivityId = 7,   Month = "2026-05", Percent = 60 },
             new Mapping { ResourceId = surplusResource.Id, ActivityId = 200, Month = "2026-05", Percent = 100 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
-        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
+        var result = await svc.GetDonorCandidatesAsync(604, null, "2026-05");
 
         Assert.NotNull(result);
-        var idleIdx   = result.Candidates.FindIndex(c => c.ResourceName == "Idle PE Resource"    && c.ActivityType == "Idle");
+        var idleIdx    = result.Candidates.FindIndex(c => c.ResourceName == "Idle PE Resource"    && c.ActivityType == "Idle");
         var surplusIdx = result.Candidates.FindIndex(c => c.ResourceName == "Surplus PE Resource" && c.ActivityType == "Support");
         Assert.True(idleIdx >= 0 && surplusIdx >= 0, "Both candidates must appear");
         Assert.True(idleIdx < surplusIdx, "Idle (Tier 1) must appear before surplus Support (Tier 2)");
@@ -1429,7 +1532,10 @@ public class DataServiceTests
         var donor = MakePeResource("LR00030", "Tiny Donor");
         context.Resources.Add(donor);
         await context.SaveChangesAsync();
-        context.Mappings.Add(new Mapping { ResourceId = donor.Id, ActivityId = 7, Month = "2026-05", Percent = 30 });
+        // Activity 7 = PE project (30%); Activity 6 pads to 100% → no idle FTE
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donor.Id, ActivityId = 7, Month = "2026-05", Percent = 30 },
+            new Mapping { ResourceId = donor.Id, ActivityId = 6, Month = "2026-05", Percent = 70 });
         await context.SaveChangesAsync();
 
         var svc = new DataService(context);
@@ -1437,10 +1543,8 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.Null(result.FewestChangesCombination);
-        Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
-        // Independent rounding: DonablePercent = m.Percent = 30 for a tier-3 donor
-        var row = Assert.Single(result.Candidates, c => c.ResourceName == "Tiny Donor" && c.ActivityType == "Project");
-        Assert.Equal(30, row.DonablePercent);
+        Assert.Empty(result.Candidates);
+        Assert.Equal(1, result.TotalAvailableCandidatesCount);
     }
 
     // Cycle 2 — no row's DonablePercent may exceed its source mapping Percent
@@ -1587,7 +1691,8 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.NotNull(result.FewestChangesCombination);
-        Assert.Equal(5, result.Candidates.Count);
+        Assert.Equal(result.FewestChangesCombination!.RowCount, result.Candidates.Count);
+        Assert.Equal(2, result.Candidates.Count);
     }
 
     // Cycle 4 — combo rows appear in FewestChangesCombination.MappingChanges, not in Candidates
@@ -1631,7 +1736,10 @@ public class DataServiceTests
         Assert.Equal(result.FewestChangesCombination.RowCount, mappingChanges.Count);
         Assert.Contains(mappingChanges, s => s.Contains("Preserve Combo1"));
         Assert.Contains(mappingChanges, s => s.Contains("Preserve Combo2"));
-        Assert.DoesNotContain(result.Candidates, c => c.ResourceName is "Preserve Combo1" or "Preserve Combo2");
+        // After item 5: combo rows appear in Candidates; extras do not.
+        Assert.Contains(result.Candidates, c => c.ResourceName == "Preserve Combo1");
+        Assert.Contains(result.Candidates, c => c.ResourceName == "Preserve Combo2");
+        Assert.DoesNotContain(result.Candidates, c => c.ResourceName is "Preserve Extra3" or "Preserve Extra4");
     }
 
     // Cycle 5 — no fewest-changes path: returns top DonorCandidateBufferRows * 2 (10) rows
@@ -1662,8 +1770,7 @@ public class DataServiceTests
 
         Assert.NotNull(result);
         Assert.Null(result.FewestChangesCombination);
-        Assert.All(result.Candidates, c => Assert.False(c.InFewestChangesCombination));
-        Assert.Equal(10, result.Candidates.Count);
+        Assert.Empty(result.Candidates);
         Assert.Equal(12, result.TotalAvailableCandidatesCount);
     }
 
@@ -1693,7 +1800,7 @@ public class DataServiceTests
         var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05");
 
         Assert.NotNull(result);
-        Assert.Equal(result.TotalAvailableCandidatesCount, result.Candidates.Count);
+        Assert.Empty(result.Candidates);
         Assert.Equal(3, result.TotalAvailableCandidatesCount);
     }
 
@@ -2149,5 +2256,118 @@ public class DataServiceTests
         // No sentence should contain a decimal point immediately before %
         Assert.All(result.FewestChangesCombination.MappingChanges,
             s => Assert.DoesNotMatch(@"\d+\.\d+%", s));
+    }
+
+    // ── Item 5: drop buffer rows ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetDonorCandidates_WithCombo_CandidatesCount_EqualsComboRowCount()
+    {
+        // Combo of 2 rows. After item 5: Candidates contains exactly those 2 rows.
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 201, Name = "NoBufApp", MinSupportFte = 1.0, RecommendedSupportFte = 0.5 });
+        context.Applications.Add(new Application { Id = 999, Name = "_NoBufPad", MinSupportFte = 0, RecommendedSupportFte = 9999 });
+        context.Activities.Add(new Activity { Id = 996, Name = "_NoBufPad - Support", ActivityType = "Support", ApplicationId = 999, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var c1 = MakePeResource("NB001", "NoBuf C1");
+        var c2 = MakePeResource("NB002", "NoBuf C2");
+        var extra = MakePeResource("NB003", "NoBuf Extra");
+        context.Resources.AddRange(c1, c2, extra);
+        await context.SaveChangesAsync();
+
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = c1.Id,    ActivityId = 7,   Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = c1.Id,    ActivityId = 996, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = c2.Id,    ActivityId = 7,   Month = "2026-05", Percent = 60 },
+            new Mapping { ResourceId = c2.Id,    ActivityId = 996, Month = "2026-05", Percent = 40 },
+            new Mapping { ResourceId = extra.Id, ActivityId = 7,   Month = "2026-05", Percent = 10 },
+            new Mapping { ResourceId = extra.Id, ActivityId = 996, Month = "2026-05", Percent = 90 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(201, null, "2026-05");
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.FewestChangesCombination);
+        Assert.Equal(result.FewestChangesCombination!.RowCount, result.Candidates.Count);
+        Assert.Equal(2, result.Candidates.Count);
+    }
+
+    [Fact]
+    public async Task GetDonorCandidates_NoCombo_CandidatesCount_IsZero()
+    {
+        // Gap too large to close: no fewest-changes combination. After item 5: Candidates = empty.
+        await using var context = CreateContext();
+        context.Applications.Add(new Application { Id = 999, Name = "_NoBufPad", MinSupportFte = 0, RecommendedSupportFte = 9999 });
+        context.Activities.Add(new Activity { Id = 996, Name = "_NoBufPad - Support", ActivityType = "Support", ApplicationId = 999, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+        var donor = MakePeResource("NB_NC001", "NoCombo Donor");
+        context.Resources.Add(donor);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donor.Id, ActivityId = 7,   Month = "2026-05", Percent = 10 },
+            new Mapping { ResourceId = donor.Id, ActivityId = 996, Month = "2026-05", Percent = 90 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+        var result = await svc.GetDonorCandidatesAsync(4, null, "2026-05"); // AuthService — huge gap
+
+        Assert.NotNull(result);
+        Assert.Null(result.FewestChangesCombination);
+        Assert.Empty(result.Candidates);
+    }
+
+    // ── GetAtRiskApplicationFixAsync (Item 3) ───────────────────────────────
+
+    [Fact]
+    public async Task GetAtRiskApplicationFix_Application_MatchesGetApplicationsAsync()
+    {
+        await using var context = CreateContext();
+        var svc = new DataService(context);
+
+        var apps = await svc.GetApplicationsAsync("2026-05", applicationId: 4);
+        var fix  = await svc.GetAtRiskApplicationFixAsync(4, null, "2026-05");
+
+        Assert.NotNull(fix);
+        Assert.Equivalent(apps.First(), fix.application);
+    }
+
+    [Fact]
+    public async Task GetAtRiskApplicationFix_FewestChangesCombination_MatchesGetDonorCandidatesAsync()
+    {
+        await using var context = CreateContext();
+
+        // Create a small app whose gap one donor can close
+        context.Applications.Add(new Application { Id = 620, Name = "FixCombo App", MinSupportFte = 0.5, RecommendedSupportFte = 1.0 });
+        context.Activities.Add(new Activity { Id = 6200, Name = "FixCombo App - Support", ActivityType = "Support", ApplicationId = 620, Division = "Platform Engineering" });
+        await context.SaveChangesAsync();
+
+        var donor = MakePeResource("FC001", "FixCombo Donor");
+        context.Resources.Add(donor);
+        await context.SaveChangesAsync();
+        context.Mappings.AddRange(
+            new Mapping { ResourceId = donor.Id, ActivityId = 6200, Month = "2026-05", Percent = 50 },
+            new Mapping { ResourceId = donor.Id, ActivityId = 6,    Month = "2026-05", Percent = 50 });
+        await context.SaveChangesAsync();
+
+        var svc = new DataService(context);
+
+        var donor_result = await svc.GetDonorCandidatesAsync(620, null, "2026-05");
+        var fix          = await svc.GetAtRiskApplicationFixAsync(620, null, "2026-05");
+
+        Assert.NotNull(fix);
+        Assert.Equivalent(donor_result?.FewestChangesCombination, fix.fewest_changes_combination);
+    }
+
+    [Fact]
+    public async Task GetAtRiskApplicationFix_ReturnsNull_ForUnknownApplication()
+    {
+        await using var context = CreateContext();
+        var svc = new DataService(context);
+
+        var result = await svc.GetAtRiskApplicationFixAsync(99999, null, "2026-05");
+
+        Assert.Null(result);
     }
 }

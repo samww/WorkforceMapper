@@ -21,6 +21,9 @@ public class AgentService(IClaudeClient claude, DataService data)
           resource above 100% or target a month in which the resource is inactive.
         - Application risk (get_application_risk) returns a pre-computed risk field: "high", "medium",
           or "low". Always read this field directly — do not re-derive it from FTE numbers.
+          Render risk_reason verbatim — do not reconstruct the coverage/min/recommended sentence
+          from raw fields. Render dependent_products_summary verbatim — do not reformat the product
+          list, recompute the ARR sum, or change the alphabetical order.
         - The dependent_products field in get_application_risk results lists every product whose
           transitive dependency closure includes this application — both direct and indirect links.
           Use total_dependent_arr_usd (pre-computed) for total ARR exposure; do not sum arr_usd
@@ -37,28 +40,42 @@ public class AgentService(IClaudeClient claude, DataService data)
           infrastructure overhead). This is deliberate, not a data quality issue.
           Use total_arr_usd (pre-computed) for the company-wide ARR total — do not sum arr_usd
           values from the products list yourself.
+          unmapped_payroll is payroll for active resources with zero mappings in the month. It is the
+          gap between total_payroll and total_mapped_cost, and is entirely distinct from the
+          Unattributed line: Unattributed is mapped cost already inside total_mapped_cost; unmapped_payroll
+          is outside total_mapped_cost and represents resources whose time was not allocated anywhere.
+          Do not conflate these two figures. Do not compute or infer unmapped_payroll — read it directly.
+          Cost and ARR are independent dimensions. A product's allocated cost comes from Support activity
+          mappings (monthly_rate × allocation_percent / 100) — it is not driven by or correlated with
+          ARR. Do not imply a causal relationship between a product's ARR and its cost.
         - active_resource_count reflects resources billing in the queried month (active flag = 1);
           resource_count is total headcount. These differ when resources join or leave mid-year.
 
-        - When asked where capacity could be found to address an under-resourced application, call
-          get_donor_candidates. Pass application_name (e.g. "AuthService") — do not guess or invent
-          application_id values. The tool returns candidates in eight-tier priority order: same-division
-          tiers 1–4 (idle capacity, surplus Support, Minor Changes, Project) come first;
-          cross-divisional tiers 5–8 (the same source types from other divisions) follow. Walk tiers
-          in order — exhaust same-division options (tiers 1–4) before presenting cross-divisional
-          options (tiers 5–8). Idle capacity (tiers 1 and 5) is the cheapest source because it does
-          not displace any other work.
-          Each row includes allocation_fte, gap_coverage_pct, cumulative_fte, cumulative_gap_coverage_pct,
-          and in_fewest_changes_combination.
-          The fewest-changes combination is the complete pre-computed solution — do not present the
-          final row of the table in isolation as the recommended action. Render
-          fewest_changes_combination.summary_paragraph verbatim as the response headline,
+        - For questions of the form "why is X at risk and how do we fix it", call
+          get_at_risk_application_fix with the application name. Render risk_reason verbatim as the
+          risk headline, then dependent_products_summary verbatim, then
+          fewest_changes_combination.summary_paragraph verbatim, then
+          fewest_changes_combination.mapping_changes as a bulleted list. If
+          cross_divisional_signoffs_required is non-empty, render one bullet per entry in the form
+          "RESOURCE: FROM_DIV → TO_DIV (N FTE) — requires cross-divisional sign-off" using the
+          resource_name, from_division, to_division, and fte fields. Otherwise render
+          cross_divisional_signoffs_summary as a single line.
+          Do not recompute counts, totals, post-fix coverage, the tier-system description, ARR sums,
+          or product names — all are baked into the strings.
+
+        - When asked where capacity could be found to address an under-resourced application (without
+          also asking why it is at risk), call get_donor_candidates. Pass application_name — do not
+          guess or invent application_id values. The tool returns candidates in eight-tier priority order:
+          same-division tiers 1–4 (idle capacity, surplus Support, Minor Changes, Project) come first;
+          cross-divisional tiers 5–8 (the same source types from other divisions) follow.
+          Render fewest_changes_combination.summary_paragraph verbatim as the response headline,
           followed by the fewest_changes_combination.mapping_changes bulleted list. Do not recompute
           counts, totals, or the tier-system description — they are baked into the paragraph.
-          For every candidate row where requires_cross_divisional_alignment is true, surface an explicit
-          warning that the transfer requires cross-divisional sign-off before acting.
-          The candidates list contains pipeline rows beyond the fewest-changes solution; use
-          total_available_candidates_count (pre-computed) when stating how many candidates were
+          If cross_divisional_signoffs_required is non-empty, render one bullet per entry in the form
+          "RESOURCE: FROM_DIV → TO_DIV (N FTE) — requires cross-divisional sign-off" using the
+          resource_name, from_division, to_division, and fte fields; otherwise render
+          cross_divisional_signoffs_summary as a single line.
+          Use total_available_candidates_count (pre-computed) when stating how many candidates were
           considered — do not count the candidates list to determine pool size.
           Do not compose donor candidates manually from get_activity_allocations calls.
 
@@ -75,6 +92,14 @@ public class AgentService(IClaudeClient claude, DataService data)
           state that clearly rather than picking one as "most" constrained. Only if exactly one
           division appears in fully_constrained_divisions, or if you must break a tie, explain the
           tiebreaker (e.g. largest headcount or cost) and label it as such.
+
+        - For questions about unallocated or idle resource cost — for a specific division or
+          company-wide — call get_unallocated_resources. Pass division = "<name>" to scope to
+          one division; omit it for a company-wide breakdown. Use threshold_pct = 100 to include
+          all resources below 100%. The result includes total_idle_monthly_cost (pre-computed sum)
+          and a per-resource breakdown. Always show the per-resource breakdown table when resources
+          are returned. If total_resource_count is zero, state that the division has no idle
+          resources.
 
         Answer only from tool results — do not estimate or infer allocation figures. Always call at
           least one tool before answering. Cite specific division names, activity names, monthly cost
@@ -107,6 +132,7 @@ public class AgentService(IClaudeClient claude, DataService data)
         };
 
         var toolsDispatched = false;
+        var nudgedOnce = false;
 
         while (true)
         {
@@ -116,6 +142,15 @@ public class AgentService(IClaudeClient claude, DataService data)
             {
                 if (!toolsDispatched)
                 {
+                    if (!nudgedOnce)
+                    {
+                        nudgedOnce = true;
+                        messages.Add(new Message { Role = RoleType.Assistant, Content = response.Content ?? [] });
+                        messages.Add(new Message(RoleType.User,
+                            "You must call at least one tool before answering. Please call the appropriate tool now."));
+                        parameters.Messages = messages;
+                        continue;
+                    }
                     var directText = string.Concat(
                         (response.Content ?? []).OfType<TextContent>().Select(t => t.Text));
                     if (directText.Length > 0)
@@ -184,6 +219,14 @@ public class AgentService(IClaudeClient claude, DataService data)
                         month),
                     JsonOpts),
 
+            "get_at_risk_application_fix" =>
+                JsonSerializer.Serialize(
+                    await data.GetAtRiskApplicationFixAsync(
+                        args?["application_id"]?.GetValue<int>(),
+                        args?["application_name"]?.GetValue<string>(),
+                        month),
+                    JsonOpts),
+
             "get_application_risk" =>
                 JsonSerializer.Serialize(
                     await data.GetApplicationsAsync(
@@ -235,19 +278,35 @@ public class AgentService(IClaudeClient claude, DataService data)
 
     private static IList<Anthropic.SDK.Common.Tool> BuildTools() =>
     [
+        MakeTool("get_at_risk_application_fix",
+            "Combined tool for the canonical 'why is X at risk and how do we fix it' question. " +
+            "Returns application risk (same shape as get_application_risk) plus the pre-computed " +
+            "fewest-changes donor solution (same shape as get_donor_candidates). " +
+            "risk_reason and dependent_products_summary are pre-rendered strings — render verbatim. " +
+            "fewest_changes_combination.summary_paragraph and mapping_changes are pre-rendered — render verbatim. " +
+            "cross_divisional_signoffs_required lists cross-div transfers needed; " +
+            "cross_divisional_signoffs_summary is the pre-rendered single-line alternative when the list is empty. " +
+            "candidates_pipeline_count is the pre-computed total donor pool size.",
+            new JsonObject
+            {
+                ["application_name"] = Prop("string",  "Application name (e.g. \"AuthService\"). Use when you know the name but not the ID."),
+                ["application_id"]   = Prop("integer", "Application ID — use only when already known."),
+                ["month"]            = Prop("string",  "Month in YYYY-MM format.")
+            }),
         MakeTool("get_capacity_by_division",
             "Get resource count, cost breakdown, and allocation percentage by division. " +
+            "Returns all divisions in a single call — no division filter. " +
             "Returns pre-computed company-wide totals: total_resource_count, total_monthly_cost, " +
             "total_allocated_monthly_cost, total_unallocated_monthly_cost, and overall_allocation_pct " +
             "(headcount-weighted across all divisions). Use these for company-wide questions — " +
             "do not sum the divisions list yourself. " +
             "Also returns fully_constrained_divisions: pre-computed list of division names whose " +
             "allocation_pct is at 100%. Use this list directly when answering capacity-constraint " +
-            "questions — do not filter the divisions list yourself.",
+            "questions — do not filter the divisions list yourself. " +
+            "For per-resource idle cost detail, use get_unallocated_resources instead.",
             new JsonObject
             {
-                ["division"] = Prop("string",  "Filter to a specific division name."),
-                ["month"]    = Prop("string",  "Month in YYYY-MM format.")
+                ["month"] = Prop("string", "Month in YYYY-MM format.")
             }),
         MakeTool("get_activity_allocations",
             "List resource-to-activity allocations with implied monthly cost.",
@@ -260,9 +319,12 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["month"]         = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_unallocated_resources",
-            "List active resources whose total allocation is below a threshold. " +
-            "Returns total_resource_count (pre-computed sum across all divisions) and " +
-            "total_idle_monthly_cost — do not count or sum the resources list yourself.",
+            "Use this tool for questions about unallocated or idle resource cost — for a specific " +
+            "division or company-wide. Pass division to scope results; omit for all divisions. " +
+            "Use threshold_pct = 100 to include all resources below 100% allocation. " +
+            "Returns total_idle_monthly_cost (pre-computed) and a per-resource breakdown " +
+            "(resource name, division, allocation %, idle monthly cost). " +
+            "Do not count or sum the resources list — use total_resource_count and total_idle_monthly_cost.",
             new JsonObject
             {
                 ["division"]      = Prop("string", "Filter by division name."),
@@ -289,10 +351,12 @@ public class AgentService(IClaudeClient claude, DataService data)
                 ["month"]      = Prop("string",  "Month in YYYY-MM format.")
             }),
         MakeTool("get_cost_by_product",
-            "Get total monthly cost attributed to each product, plus an Unattributed line. " +
-            "Returns pre-computed totals: total_payroll (active headcount), total_mapped_cost, " +
-            "and total_arr_usd (sum of ARR across all products). " +
-            "Use total_arr_usd for the company-wide ARR figure — do not sum arr_usd values yourself.",
+            "Get total monthly cost attributed to each product (rounded to nearest $1,000), plus an Unattributed line. " +
+            "Returns pre-computed totals: total_payroll, total_mapped_cost, unmapped_payroll, and total_arr_usd. " +
+            "unmapped_payroll = payroll for resources with zero mappings; it is the gap between total_payroll and " +
+            "total_mapped_cost, and is distinct from the Unattributed product line (which is already inside total_mapped_cost). " +
+            "Use total_arr_usd for the company-wide ARR figure — do not sum arr_usd values yourself. " +
+            "Cost and ARR are independent — do not infer a causal relationship between them.",
             new JsonObject
             {
                 ["month"] = Prop("string", "Month in YYYY-MM format.")

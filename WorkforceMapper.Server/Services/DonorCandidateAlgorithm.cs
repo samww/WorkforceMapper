@@ -6,7 +6,6 @@ namespace WorkforceMapper.Server.Services;
 
 public class DonorCandidateAlgorithm(WorkforceDbContext context)
 {
-    private const int BufferRows = 5;
 
     public async Task<DonorCandidatesResult?> FindAsync(
         int? applicationId, string? applicationName, string month)
@@ -80,7 +79,13 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             var remainingGap = gap - cumulativeBefore;
             var trimmedPct = Math.Max(1, (int)Math.Round(remainingGap * 100.0));
             candidates = candidates
-                .Select((c, i) => i == stoppingIdx ? c with { DonablePercent = trimmedPct } : c)
+                .Select((c, i) => i == stoppingIdx
+                    ? c with {
+                        DonablePercent     = trimmedPct,
+                        AllocationFte      = trimmedPct / 100.0,
+                        ImpliedMonthlyCost = c.CostPerFte * (decimal)(trimmedPct / 100.0)
+                      }
+                    : c)
                 .ToList();
         }
 
@@ -91,6 +96,13 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             var mappingChanges = comboRows
                 .Select(r => ComposeMappingChange(r, application.Name, division))
                 .ToList();
+            var signoffs = comboRows
+                .Where(c => c.RequiresCrossDivisionalAlignment)
+                .Select(c => new CrossDivisionalSignoff(c.ResourceName, c.ResourceDivision, division, c.AllocationFte))
+                .ToList();
+            var signoffSummary = signoffs.Count == 0
+                ? "No cross-divisional sign-off required."
+                : $"Cross-divisional sign-off required for {signoffs.Count} transfer(s).";
             fewestChangesCombo = new FewestChangesCombinationSummary(
                 comboRows.Count,
                 comboRows.Select(c => c.ResourceName).Distinct().Count(),
@@ -98,14 +110,17 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
                 comboRows.Sum(c => c.ImpliedMonthlyCost),
                 candidates[stoppingIdx].CumulativeGapCoveragePct,
                 mappingChanges,
-                ComposeSummaryParagraph(comboRows, application.Name, surplusSupportFteAvailable));
+                ComposeSummaryParagraph(comboRows, application.Name, surplusSupportFteAvailable,
+                    currentCoverage, application.MinSupportFte, application.RecommendedSupportFte),
+                signoffs,
+                signoffSummary);
         }
 
         var totalAvailableCandidatesCount = candidates.Count;
 
         var trimmed = stoppingIdx >= 0
-            ? candidates.Where(c => !c.InFewestChangesCombination).Take(BufferRows).ToList()
-            : candidates.Take(BufferRows * 2).ToList();
+            ? candidates.Where(c => c.InFewestChangesCombination).ToList()
+            : new List<DonorCandidateRow>();
 
         return new DonorCandidatesResult(
             application.Id, application.Name, division,
@@ -225,7 +240,10 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
     private static string ComposeSummaryParagraph(
         List<DonorCandidateRow> comboRows,
         string applicationName,
-        double surplusSupportFteAvailable)
+        double surplusSupportFteAvailable,
+        double coverageBefore,
+        double minSupportFte,
+        double recommendedSupportFte)
     {
         static int TierOf(DonorCandidateRow r) => r.ActivityType switch
         {
@@ -263,6 +281,16 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
         var costK  = (int)Math.Round(totalCost / 1000m);
         var totals = $"Total: {totalFte:F1} FTE, ${costK}k/month.";
 
+        var coverageAfter = coverageBefore + totalFte;
+        var tail = coverageAfter >= recommendedSupportFte - 0.005
+            ? "at the recommended level"
+            : Math.Abs(coverageAfter - minSupportFte) <= 0.005
+                ? "the minimum"
+                : coverageAfter > minSupportFte
+                    ? "above the minimum"
+                    : "still below the minimum";
+        var outcomeSentence = $" {applicationName} coverage rises from {coverageBefore:F1} to {coverageAfter:F1} FTE ({tail}).";
+
         var tier2Fte       = comboRows.Where(r => TierOf(r) == 2).Sum(r => r.AllocationFte);
         var exhaustionNote = tier2Fte > 0 && Math.Abs(tier2Fte - surplusSupportFteAvailable) <= 0.01
             ? $" This exhausts the {surplusSupportFteAvailable:F1} FTE of same-division surplus Support available."
@@ -272,7 +300,7 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             "(Tier 1 idle capacity, Tier 2 surplus Support, Tier 3 Minor Changes, Tier 4 Project); " +
             "tiers 5-8 are the same source types from other divisions and require cross-divisional alignment.";
 
-        return $"{rowCount} {changeWord} across {distinctCount} {personWord} {tierScope}. {totals}{exhaustionNote} {tierExplanation}";
+        return $"{rowCount} {changeWord} across {distinctCount} {personWord} {tierScope}. {totals}{outcomeSentence}{exhaustionNote} {tierExplanation}";
     }
 
     private static string ComposeMappingChange(DonorCandidateRow row, string targetAppName, string targetDivision)

@@ -71,6 +71,7 @@ public record ProductCostResult(
 public record ProductCostSummary(
     decimal TotalPayroll,
     decimal TotalMappedCost,
+    decimal UnmappedPayroll,
     decimal TotalArrUsd,
     List<ProductCostResult> Products
 );
@@ -94,6 +95,10 @@ public record DonorCandidateRow(
     int CurrentTargetSupportPct = 0
 );
 
+public record CrossDivisionalSignoff(
+    string ResourceName, string FromDivision, string ToDivision, double Fte
+);
+
 public record FewestChangesCombinationSummary(
     int RowCount,
     int DistinctResourceCount,
@@ -101,7 +106,9 @@ public record FewestChangesCombinationSummary(
     decimal TotalMonthlyCost,
     double GapCoverageReachedPct,
     List<string> MappingChanges,
-    string? SummaryParagraph
+    string? SummaryParagraph,
+    List<CrossDivisionalSignoff> CrossDivisionalSignoffsRequired,
+    string CrossDivisionalSignoffsSummary
 );
 
 public record DonorCandidatesResult(

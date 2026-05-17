@@ -54,19 +54,25 @@ public class ProductCostAttribution(WorkforceDbContext context)
         }
 
         var results = productCosts
-            .Select(kvp => new ProductCostResult(kvp.Key, kvp.Value.Name, kvp.Value.ArrUsd, kvp.Value.Cost))
+            .Select(kvp => new ProductCostResult(kvp.Key, kvp.Value.Name, kvp.Value.ArrUsd, Round1k(kvp.Value.Cost)))
             .OrderByDescending(r => r.TotalAllocatedCost)
             .ToList();
 
         if (unattributedCost > 0)
-            results.Add(new ProductCostResult(null, "Unattributed", 0m, unattributedCost));
+            results.Add(new ProductCostResult(null, "Unattributed", 0m, Round1k(unattributedCost)));
 
-        var totalPayroll    = snapshot.ActiveResources.Sum(ar => ar.Resource.MonthlyRate);
-        var totalMappedCost = snapshot.ActiveMappings.Sum(am => am.AllocatedCost);
+        var exactPayroll    = snapshot.ActiveResources.Sum(ar => ar.Resource.MonthlyRate);
+        var exactMappedCost = snapshot.ActiveMappings.Sum(am => am.AllocatedCost);
+        var totalPayroll    = Round1k(exactPayroll);
+        var totalMappedCost = Round1k(exactMappedCost);
+        var unmappedPayroll = Round1k(exactPayroll - exactMappedCost);
         var totalArrUsd     = productCosts.Values.Sum(v => v.ArrUsd);
 
-        return new ProductCostSummary(totalPayroll, totalMappedCost, totalArrUsd, results);
+        return new ProductCostSummary(totalPayroll, totalMappedCost, unmappedPayroll, totalArrUsd, results);
     }
+
+    private static decimal Round1k(decimal v) =>
+        Math.Round(v / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
     private static void AddCost(
         Dictionary<int, (string, decimal, decimal)> dict,

@@ -88,4 +88,55 @@ public class ApplicationsApiTests : IClassFixture<CustomWebApplicationFactory>
             Assert.True(p.TryGetProperty("arr_usd", out _));
         });
     }
+
+    // ── Item 4: pre-rendered risk_reason and dependent_products_summary ───────
+
+    [Fact]
+    public async Task GetApplications_AuthService_RiskReason_MatchesHighTemplate()
+    {
+        // coverage=3.0, min=4.0, rec=5.0, gap=1.0
+        var apps = await GetAppsAsync();
+        var auth = apps.Single(a => a.GetProperty("name").GetString() == "AuthService");
+        var reason = auth.GetProperty("risk_reason").GetString();
+        Assert.Equal(
+            "Coverage 3.0 FTE is 1.0 FTE below the minimum 4.0 FTE (recommended 5.0); risk classification: high.",
+            reason);
+    }
+
+    [Fact]
+    public async Task GetApplications_AuthService_DependentProductsSummary_ListsSevenProducts()
+    {
+        // All 7 products ($28.9M ARR) transitively depend on AuthService
+        var apps = await GetAppsAsync();
+        var auth = apps.Single(a => a.GetProperty("name").GetString() == "AuthService");
+        var summary = auth.GetProperty("dependent_products_summary").GetString();
+        Assert.Contains("$28.9M ARR across 7 products", summary);
+        // Alphabetically first and last
+        Assert.Contains("BrandTracking Platform", summary);
+        Assert.Contains("RetailInsights", summary);
+    }
+
+    [Fact]
+    public async Task GetApplications_DataMapper_RiskReason_MatchesMediumTemplate()
+    {
+        // coverage=2.0, min=1.5, rec=2.5, belowRec=0.5
+        var apps = await GetAppsAsync();
+        var app = apps.Single(a => a.GetProperty("name").GetString() == "DataMapper");
+        var reason = app.GetProperty("risk_reason").GetString();
+        Assert.Equal(
+            "Coverage 2.0 FTE meets the minimum 1.5 FTE but is 0.5 FTE below the recommended 2.5 FTE; risk classification: medium.",
+            reason);
+    }
+
+    [Fact]
+    public async Task GetApplications_CoreDataWarehouse_RiskReason_MatchesLowTemplate()
+    {
+        // coverage=3.0, rec=3.0 → low
+        var apps = await GetAppsAsync();
+        var app = apps.Single(a => a.GetProperty("name").GetString() == "CoreDataWarehouse");
+        var reason = app.GetProperty("risk_reason").GetString();
+        Assert.Equal(
+            "Coverage 3.0 FTE is at or above the recommended 3.0 FTE; risk classification: low.",
+            reason);
+    }
 }
