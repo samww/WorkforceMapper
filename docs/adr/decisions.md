@@ -135,3 +135,27 @@ The snapshot owns: the active-flag rule (resources contribute only when their mo
 - `MonthlyAllocationSnapshot.ProjectAllocationOf(projectId)` is the single source of truth for project allocation; parallels `SupportCoverageOf` but spans all activity types of the project.
 - The Projects tab renders a fill-only allocation bar — no min/recommended markers, no risk badge, no risk-derived sort.
 - `get_project_allocation` system-prompt guidance must forbid adequacy/risk language explicitly. Every other tool has thresholds to lean on; without that explicit forbid, the LLM will pattern-match to the Application playbook.
+
+---
+
+## ADR 11: Pre-rendered deterministic prose in tool outputs
+
+**Decision:** When a well-formed sentence can be composed deterministically from a tool's data, the tool owns the sentence — LLM renders verbatim, never reconstructs from raw fields. Covers risk explanations, FTE/coverage headlines, donor-fix summaries, mapping-change bullets, dependent-product summaries, cross-divisional sign-off warnings, and future per-row narrative.
+
+**Why:** LLM composition from raw fields drifts (round-2 feedback: agent invented "brings AuthService to 4.3 FTE / small buffer" from three numeric fields + one buggy total). Two-tool stitching also lets independent computations of the same quantity disagree (e.g. "1.0 FTE gap" vs "1.3 FTE total"). Pre-rendering moves composition and consistency into testable C# strings.
+
+**Alternatives rejected:**
+
+- **Stricter system-prompt instructions.** Tried across issues #29, #30, #34 — each iteration fixed one failure and introduced another. Pre-rendering removes the composition step entirely.
+- **Single mega-tool returning one rendered response string.** Conflates retrieval with presentation; blocks reuse by REST endpoints and dashboards. Field-level pre-rendering keeps data shape useful.
+- **Render at the agent layer (post-tool, pre-LLM).** Moves the burden sideways without earning testability — the string would not appear in REST responses where the same need exists.
+
+**Key constraints:**
+
+- Every pre-rendered string has a snapshot test for at least one representative scenario.
+- Numeric-bearing prose has an invariant test asserting the embedded numbers match the source data (e.g. `round(sum(AllocationFte) × 100) == sum(DonablePercent)` for `FewestChangesCombinationSummary` totals).
+- Raw fields are retained when pre-rendered fields are added — `total_dependent_arr_usd` alongside `dependent_products_summary`, `current_coverage_fte` alongside `risk_reason`. Pre-rendered strings are additive for non-LLM consumers.
+- System-prompt instructs verbatim rendering and explicitly forbids reconstruction. Without the forbid the LLM pattern-matches to training-prior recomposition. Template: the issue #34 "render `summary_paragraph` verbatim" pattern.
+- New tools are designed pre-render-first: ask "what sentences will the LLM render?" before defining the data shape.
+
+**Precedent:** issue #33 (`mapping_changes`), #34 (`summary_paragraph`), `docs/build/user-test-feedback-2.md` (round-2 extensions).
