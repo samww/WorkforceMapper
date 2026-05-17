@@ -20,6 +20,8 @@
 
 `switchTopLevelSection` is the shared section-switching path for desktop tabs and mobile drawer destinations. It clears `selectedApp`, `selectedProduct`, `productBackApp`, and `appBackProduct`; drawer destination taps also close the drawer. The drawer closes via destination tap, backdrop click, Escape, and its close button. Drawer width is `min(20rem, 85vw)`. `Ask AI`, Month, and Division remain visible global controls outside the drawer.
 
+The nav bar (`<header>`) and the filter bar (month/division dropdowns, `role="region" aria-label="Filter bar"`) share the same visual height. Neither uses `min-h-16`; both are sized by `py-2` outer padding plus their content. Nav bar buttons use `py-1` (not `py-2`) and carry no `min-h-11` constraint — the filter bar's natural select height sets the target row height for both.
+
 For the Applications screen mobile layout, the table remains a table. The `Division` header and cells use `hidden sm:table-cell`, and mobile cells use tighter horizontal padding while preserving desktop spacing. The global Division filter is the mobile way to work by division; there is no visible mobile sort control for the hidden Division column.
 
 ## DependencyGraph

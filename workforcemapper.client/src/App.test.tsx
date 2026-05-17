@@ -44,6 +44,13 @@ describe('App filter bar', () => {
     expect(screen.getByLabelText(/month/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/division/i)).toBeInTheDocument();
   });
+
+  it('matches the vertical height of the nav bar — neither bar forces min-h-16', () => {
+    mockFetch();
+    render(<App />);
+    expect(screen.getByRole('banner')).not.toHaveClass('min-h-16');
+    expect(screen.getByRole('region', { name: /filter bar/i })).not.toHaveClass('min-h-16');
+  });
 });
 
 describe('Ask AI button', () => {
@@ -82,16 +89,14 @@ describe('Responsive navigation', () => {
     const desktopNav = screen.getByRole('navigation', { name: /primary sections/i });
     expect(desktopNav).toHaveClass('hidden');
     expect(desktopNav).toHaveClass('sm:flex');
-    expect(within(desktopNav).getByRole('button', { name: /mappings/i })).toHaveClass('min-h-11');
-    expect(within(desktopNav).getByRole('button', { name: /applications/i })).toHaveClass('min-h-11');
-    expect(within(desktopNav).getByRole('button', { name: /products/i })).toHaveClass('min-h-11');
-    expect(within(desktopNav).getByRole('button', { name: /projects/i })).toHaveClass('min-h-11');
+    expect(within(desktopNav).getByRole('button', { name: /mappings/i })).toHaveClass('rounded-lg');
+    expect(within(desktopNav).getByRole('button', { name: /applications/i })).toHaveClass('rounded-lg');
+    expect(within(desktopNav).getByRole('button', { name: /products/i })).toHaveClass('rounded-lg');
+    expect(within(desktopNav).getByRole('button', { name: /projects/i })).toHaveClass('rounded-lg');
 
     const mobileTrigger = screen.getByRole('button', { name: /open navigation/i });
     expect(mobileTrigger).toHaveClass('sm:hidden');
-    expect(mobileTrigger).toHaveClass('min-h-11');
     expect(mobileTrigger).toHaveClass('items-center');
-    expect(screen.getByRole('button', { name: /ask ai/i })).toHaveClass('min-h-11');
     expect(screen.getByRole('button', { name: /ask ai/i })).toHaveClass('items-center');
   });
 

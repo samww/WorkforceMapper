@@ -102,12 +102,12 @@ export default function App() {
         </div>
       )}
       <div className="flex-1 overflow-auto min-w-0 flex flex-col">
-        <header className="flex min-h-16 items-center gap-2 border-b border-gray-700 px-4 py-2">
+        <header className="flex items-center gap-2 border-b border-gray-700 px-4 py-2">
           <button
             type="button"
             aria-label="Open navigation"
             onClick={() => setMobileNavOpen(true)}
-            className="flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-gray-100 sm:hidden"
+            className="flex min-w-9 flex-col items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-1 text-gray-100 sm:hidden"
           >
             <span className="h-0.5 w-5 rounded bg-current" />
             <span className="h-0.5 w-5 rounded bg-current" />
@@ -118,7 +118,7 @@ export default function App() {
               <button
                 key={t}
                 onClick={() => switchTopLevelSection(t)}
-                className={`inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium capitalize transition-colors
+                className={`inline-flex items-center rounded-lg px-4 py-1 text-sm font-medium capitalize transition-colors
                   ${tab === t ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}
               >
                 {t}
@@ -128,14 +128,14 @@ export default function App() {
           {!chatOpen && (
             <button
               onClick={() => setChatOpen(true)}
-              className="ml-auto inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+              className="ml-auto inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-1 text-sm font-medium text-white hover:bg-blue-500"
             >
               Ask AI
             </button>
           )}
         </header>
 
-        <div className="flex flex-wrap gap-4 px-4 py-2 border-b border-gray-800 items-center bg-gray-900">
+        <div role="region" aria-label="Filter bar" className="flex flex-wrap gap-4 px-4 py-2 border-b border-gray-800 items-center bg-gray-900">
           <div>
             <label htmlFor="app-month-select" className="text-sm text-gray-400 mr-2">Month</label>
             <select
