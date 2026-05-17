@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProductsView from './ProductsView';
 
@@ -49,5 +49,86 @@ describe('ProductsView', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
     expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+});
+
+const SORT_PRODUCTS = [
+  { id: 1, name: 'Zeta', arr: 3000000, risk: 'high' as const, contributing_apps: [], direct_apps: [] },
+  { id: 2, name: 'Alpha', arr: 6000000, risk: 'high' as const, contributing_apps: [], direct_apps: [] },
+  { id: 3, name: 'Mango', arr: 1000000, risk: 'low' as const, contributing_apps: [], direct_apps: [] },
+];
+
+describe('ProductsView sort', () => {
+  it('default sort is risk-desc then name-asc tiebreaker', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Alpha');  // high, A < Z
+    expect(rows[2]).toHaveTextContent('Zeta');   // high, Z
+    expect(rows[3]).toHaveTextContent('Mango');  // low
+  });
+
+  it('clicking Name header sorts by name asc', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Alpha');
+    expect(rows[2]).toHaveTextContent('Mango');
+    expect(rows[3]).toHaveTextContent('Zeta');
+  });
+
+  it('clicking Name header twice toggles to name desc', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Zeta');
+    expect(rows[2]).toHaveTextContent('Mango');
+    expect(rows[3]).toHaveTextContent('Alpha');
+  });
+
+  it('clicking ARR header (first click) sorts arr desc (largest first)', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    fireEvent.click(screen.getByRole('button', { name: /arr/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Alpha');  // 6M
+    expect(rows[2]).toHaveTextContent('Zeta');   // 3M
+    expect(rows[3]).toHaveTextContent('Mango');  // 1M
+  });
+
+  it('clicking Risk header (first click) sorts risk desc', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    fireEvent.click(screen.getByRole('button', { name: /risk/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Alpha');  // high, A < Z
+    expect(rows[2]).toHaveTextContent('Zeta');   // high
+    expect(rows[3]).toHaveTextContent('Mango');  // low
+  });
+
+  it('active column header shows sort arrow, inactive columns do not', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    // Default: Risk is active (desc)
+    expect(screen.getByRole('button', { name: /risk/i }).textContent).toMatch(/[▲▼]/);
+    expect(screen.getByRole('button', { name: /name/i }).textContent).not.toMatch(/[▲▼]/);
+  });
+
+  it('active column th has aria-sort attribute', async () => {
+    mockFetch(SORT_PRODUCTS);
+    render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('Alpha');
+    fireEvent.click(screen.getByRole('button', { name: /arr/i }));
+    expect(screen.getByRole('button', { name: /arr/i }).closest('th')).toHaveAttribute('aria-sort', 'descending');
   });
 });

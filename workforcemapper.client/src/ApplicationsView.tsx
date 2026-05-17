@@ -65,32 +65,80 @@ export function CoverageBar({ current, min, recommended, barMax }: { current: nu
   );
 }
 
+type AppSortCol = 'name' | 'division' | 'risk' | 'coverage';
+
+const RISK_ORDER: Record<string, number> = { high: 2, medium: 1, low: 0 };
+
+const COL_FIRST_DIR: Record<AppSortCol, 'asc' | 'desc'> = {
+  name: 'asc',
+  division: 'asc',
+  risk: 'desc',
+  coverage: 'asc',
+};
+
+function sortApps(apps: ApplicationRisk[], col: AppSortCol, dir: 'asc' | 'desc'): ApplicationRisk[] {
+  return [...apps].sort((a, b) => {
+    let cmp = 0;
+    if (col === 'name') cmp = a.name.localeCompare(b.name);
+    else if (col === 'division') cmp = a.division.localeCompare(b.division);
+    else if (col === 'risk') cmp = RISK_ORDER[a.risk] - RISK_ORDER[b.risk];
+    else if (col === 'coverage') cmp = a.current_coverage_fte - b.current_coverage_fte;
+    const primary = dir === 'asc' ? cmp : -cmp;
+    if (primary !== 0) return primary;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export default function ApplicationsView({ month, division, onSelectApp }: Props) {
   const [apps, setApps] = useState<ApplicationRisk[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortCol, setSortCol] = useState<AppSortCol>('risk');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     setLoading(true);
     fetch(`/api/applications?month=${month}`)
       .then(r => r.json())
       .then((data: ApplicationRisk[]) => {
-        const riskOrder = { high: 0, medium: 1, low: 2 };
-        data.sort((a, b) => {
-          const rd = riskOrder[a.risk] - riskOrder[b.risk];
-          if (rd !== 0) return rd;
-          const gapA = a.min_support_fte - a.current_coverage_fte;
-          const gapB = b.min_support_fte - b.current_coverage_fte;
-          return gapB - gapA;
-        });
         setApps(data);
         setLoading(false);
       });
   }, [month]);
 
-  const visible = division === 'All' ? apps : apps.filter(a => a.division === division);
+  function handleSort(col: AppSortCol) {
+    if (col === sortCol) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir(COL_FIRST_DIR[col]);
+    }
+  }
+
+  const filtered = division === 'All' ? apps : apps.filter(a => a.division === division);
+  const visible = sortApps(filtered, sortCol, sortDir);
   const barMax = visible.length > 0
     ? Math.max(...visible.flatMap(a => [a.current_coverage_fte, a.min_support_fte, a.recommended_support_fte]))
     : 1;
+
+  function colHeaderProps(col: AppSortCol) {
+    const active = col === sortCol;
+    const ariaSortMap = { asc: 'ascending' as const, desc: 'descending' as const };
+    return {
+      'aria-sort': active ? ariaSortMap[sortDir] : ('none' as const),
+      className: 'pb-2 pr-4',
+    };
+  }
+
+  function colBtnClass(col: AppSortCol) {
+    return col === sortCol
+      ? 'text-gray-100 cursor-pointer'
+      : 'text-gray-400 hover:text-gray-200 cursor-pointer';
+  }
+
+  function arrow(col: AppSortCol) {
+    if (col !== sortCol) return null;
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
 
   if (loading) return (
     <div className="flex justify-center items-center h-40">
@@ -105,11 +153,11 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
       </div>
       <table className="w-full text-sm text-gray-200">
         <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-700">
-            <th className="pb-2 pr-4">Name</th>
-            <th className="pb-2 pr-4">Division</th>
-            <th className="pb-2 pr-4">Risk</th>
-            <th className="pb-2">Coverage</th>
+          <tr className="text-left border-b border-gray-700">
+            <th {...colHeaderProps('name')}><button className={colBtnClass('name')} onClick={() => handleSort('name')}>Name{arrow('name')}</button></th>
+            <th {...colHeaderProps('division')}><button className={colBtnClass('division')} onClick={() => handleSort('division')}>Division{arrow('division')}</button></th>
+            <th {...colHeaderProps('risk')}><button className={colBtnClass('risk')} onClick={() => handleSort('risk')}>Risk{arrow('risk')}</button></th>
+            <th aria-sort={sortCol === 'coverage' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} className="pb-2"><button className={colBtnClass('coverage')} onClick={() => handleSort('coverage')}>Coverage{arrow('coverage')}</button></th>
           </tr>
         </thead>
         <tbody>

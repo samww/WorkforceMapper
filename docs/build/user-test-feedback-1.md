@@ -137,7 +137,7 @@ Do not replace existing chips.
 
 ---
 
-## 4. Sortable column headers — Applications + Projects
+## 4. Sortable column headers — Applications, Projects + Products ✓ shipped (#49)
 
 Click any column header to sort by that column. Click again to toggle direction. Show an arrow on the active sorted column.
 

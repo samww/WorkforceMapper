@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ApplicationsView, { CoverageBar } from './ApplicationsView';
 
@@ -87,5 +87,88 @@ describe('ApplicationsView', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
     expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+});
+
+const SORT_APPS = [
+  { id: 1, name: 'Zebra', division: 'Analytics', min_support_fte: 2.0, recommended_support_fte: 3.0, current_coverage_fte: 1.0, risk: 'high' as const, dependent_products: [] },
+  { id: 2, name: 'Apple', division: 'Platform Engineering', min_support_fte: 2.0, recommended_support_fte: 3.0, current_coverage_fte: 5.0, risk: 'high' as const, dependent_products: [] },
+  { id: 3, name: 'Mango', division: 'Analytics', min_support_fte: 2.0, recommended_support_fte: 3.0, current_coverage_fte: 3.0, risk: 'low' as const, dependent_products: [] },
+];
+
+describe('ApplicationsView sort', () => {
+  it('default sort is risk-desc then name-asc tiebreaker', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Apple');   // high, A < Z
+    expect(rows[2]).toHaveTextContent('Zebra');   // high, Z
+    expect(rows[3]).toHaveTextContent('Mango');   // low
+  });
+
+  it('clicking Name header sorts by name asc', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Apple');
+    expect(rows[2]).toHaveTextContent('Mango');
+    expect(rows[3]).toHaveTextContent('Zebra');
+  });
+
+  it('clicking Name header twice toggles to name desc', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Zebra');
+    expect(rows[2]).toHaveTextContent('Mango');
+    expect(rows[3]).toHaveTextContent('Apple');
+  });
+
+  it('clicking Risk header (first click) sorts risk-desc', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    // Switch to Name first, then back to Risk to confirm first-click direction
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    fireEvent.click(screen.getByRole('button', { name: /risk/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Apple');   // high, name asc
+    expect(rows[2]).toHaveTextContent('Zebra');   // high
+    expect(rows[3]).toHaveTextContent('Mango');   // low
+  });
+
+  it('clicking Coverage header (first click) sorts coverage asc', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    fireEvent.click(screen.getByRole('button', { name: /coverage/i }));
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Zebra');   // 1.0
+    expect(rows[2]).toHaveTextContent('Mango');   // 3.0
+    expect(rows[3]).toHaveTextContent('Apple');   // 5.0
+  });
+
+  it('active column header shows sort arrow, inactive columns do not', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    // Default: Risk is active column (desc)
+    expect(screen.getByRole('button', { name: /risk/i }).textContent).toMatch(/[▲▼]/);
+    expect(screen.getByRole('button', { name: /name/i }).textContent).not.toMatch(/[▲▼]/);
+  });
+
+  it('active column th has aria-sort attribute', async () => {
+    mockFetch(SORT_APPS);
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('Apple');
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    const nameBtn = screen.getByRole('button', { name: /name/i });
+    expect(nameBtn.closest('th')).toHaveAttribute('aria-sort', 'ascending');
   });
 });

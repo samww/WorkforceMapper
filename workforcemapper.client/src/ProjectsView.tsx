@@ -41,28 +41,76 @@ function AllocationBar({ allocation, barMax }: { allocation: number; barMax: num
   );
 }
 
+type ProjectSortCol = 'name' | 'divisions' | 'allocation';
+
+const PROJECT_COL_FIRST_DIR: Record<ProjectSortCol, 'asc' | 'desc'> = {
+  name: 'asc',
+  divisions: 'asc',
+  allocation: 'desc',
+};
+
+function sortProjects(projects: ProjectAllocation[], col: ProjectSortCol, dir: 'asc' | 'desc'): ProjectAllocation[] {
+  return [...projects].sort((a, b) => {
+    let cmp = 0;
+    if (col === 'name') cmp = a.name.localeCompare(b.name);
+    else if (col === 'divisions') cmp = [...a.divisions].sort()[0].localeCompare([...b.divisions].sort()[0]);
+    else if (col === 'allocation') cmp = a.allocation_fte - b.allocation_fte;
+    const primary = dir === 'asc' ? cmp : -cmp;
+    if (primary !== 0) return primary;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export default function ProjectsView({ month, division }: Props) {
   const [projects, setProjects] = useState<ProjectAllocation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortCol, setSortCol] = useState<ProjectSortCol>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     setLoading(true);
     fetch(`/api/projects?month=${month}`)
       .then(r => r.json())
       .then((data: ProjectAllocation[]) => {
-        data.sort((a, b) => a.name.localeCompare(b.name));
         setProjects(data);
         setLoading(false);
       });
   }, [month]);
 
-  const visible = division === 'All'
+  function handleSort(col: ProjectSortCol) {
+    if (col === sortCol) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir(PROJECT_COL_FIRST_DIR[col]);
+    }
+  }
+
+  const filtered = division === 'All'
     ? projects
     : projects.filter(p => p.divisions.includes(division));
+
+  const visible = sortProjects(filtered, sortCol, sortDir);
 
   const barMax = visible.length > 0
     ? Math.max(...visible.map(p => p.allocation_fte)) || 1
     : 1;
+
+  function colBtnClass(col: ProjectSortCol) {
+    return col === sortCol
+      ? 'text-gray-100 cursor-pointer'
+      : 'text-gray-400 hover:text-gray-200 cursor-pointer';
+  }
+
+  function arrow(col: ProjectSortCol) {
+    if (col !== sortCol) return null;
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
+
+  function ariaSortAttr(col: ProjectSortCol): 'ascending' | 'descending' | 'none' {
+    if (col !== sortCol) return 'none';
+    return sortDir === 'asc' ? 'ascending' : 'descending';
+  }
 
   if (loading) return (
     <div className="flex justify-center items-center h-40">
@@ -77,10 +125,10 @@ export default function ProjectsView({ month, division }: Props) {
       </div>
       <table className="w-full text-sm text-gray-200">
         <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-700">
-            <th className="pb-2 pr-4">Name</th>
-            <th className="pb-2 pr-4">Divisions</th>
-            <th className="pb-2">Allocation</th>
+          <tr className="text-left border-b border-gray-700">
+            <th aria-sort={ariaSortAttr('name')} className="pb-2 pr-4"><button className={colBtnClass('name')} onClick={() => handleSort('name')}>Name{arrow('name')}</button></th>
+            <th aria-sort={ariaSortAttr('divisions')} className="pb-2 pr-4"><button className={colBtnClass('divisions')} onClick={() => handleSort('divisions')}>Divisions{arrow('divisions')}</button></th>
+            <th aria-sort={ariaSortAttr('allocation')} className="pb-2"><button className={colBtnClass('allocation')} onClick={() => handleSort('allocation')}>Allocation{arrow('allocation')}</button></th>
           </tr>
         </thead>
         <tbody>
