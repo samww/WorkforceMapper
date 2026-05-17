@@ -14,16 +14,17 @@ public class ApplicationRiskReporter(WorkforceDbContext context)
             .ToListAsync();
 
         var allProducts = await context.Products.ToListAsync();
-        var productById = allProducts.ToDictionary(p => p.Id);
-
         var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
 
         var appRiskById = applications.ToDictionary(
             app => app.Id,
             app =>
             {
-                var cov = snapshot.SupportCoverageOf(app.Id);
-                return RiskCalculator.ClassifyApplication(cov, app.MinSupportFte, app.RecommendedSupportFte);
+                var coverage = snapshot.SupportCoverageOf(app.Id);
+                return RiskCalculator.ClassifyApplication(
+                    coverage,
+                    app.MinSupportFte,
+                    app.RecommendedSupportFte);
             });
 
         var edges = await context.ApplicationDependencies
@@ -36,37 +37,22 @@ public class ApplicationRiskReporter(WorkforceDbContext context)
         var graph = new DependencyGraph(
             edges.Select(e => (e.ApplicationId, e.DependsOnApplicationId)),
             productApps.Select(pa => (pa.ProductId, pa.ApplicationId)));
+        var reach = new RiskReach(
+            graph,
+            productApps.Select(pa => (pa.ProductId, pa.ApplicationId)),
+            allProducts.Select(p => new RiskReachProduct(p.Id, p.Name, p.ArrUsd)),
+            applications.Select(a => new RiskReachApplication(
+                a.Id,
+                a.Name,
+                a.Activities.FirstOrDefault()?.Division ?? "")),
+            edges.Select(e => (e.ApplicationId, e.DependsOnApplicationId)));
 
-        var paByProduct = productApps
-            .GroupBy(pa => pa.ProductId)
-            .ToDictionary(g => g.Key, g => g.Select(pa => pa.ApplicationId).ToHashSet());
-
-        var paTuples = productApps.Select(pa => (pa.ProductId, pa.ApplicationId));
-
-        // Transitive closure per product using the shared BuildProductClosure helper
-        var closureByProduct = paByProduct.ToDictionary(
-            kvp => kvp.Key,
-            kvp => ProductRiskReporter.BuildProductClosure(kvp.Key, paTuples, graph));
-
-        // Reverse: appId → product ids whose closure includes this app
-        var productIdsByApp = new Dictionary<int, List<int>>();
-        foreach (var (pid, closure) in closureByProduct)
-            foreach (var appId in closure)
-            {
-                if (!productIdsByApp.TryGetValue(appId, out var list))
-                    productIdsByApp[appId] = list = [];
-                list.Add(pid);
-            }
-
-        RiskLevel ProductRiskFor(int pid)
+        RiskLevel ProductRiskFor(int productId)
         {
-            var closure = ProductRiskReporter.BuildProductClosure(pid, paTuples, graph);
-            return closure
-                .Select(id => appRiskById.TryGetValue(id, out var r) ? r : RiskLevel.Low)
-                .Aggregate(RiskLevel.Low, (acc, r) => r > acc ? r : acc);
+            var riskApplications = reach.ProductRiskApplications(productId, appRiskById);
+            return RiskCalculator.AggregateProductRisk(riskApplications.Select(a => a.Risk));
         }
 
-        var nameById     = applications.ToDictionary(a => a.Id, a => a.Name);
         var divisionById = applications.ToDictionary(
             a => a.Id, a => a.Activities.FirstOrDefault()?.Division ?? "");
 
@@ -81,27 +67,29 @@ public class ApplicationRiskReporter(WorkforceDbContext context)
             .Select(app =>
             {
                 var coverage = snapshot.SupportCoverageOf(app.Id);
-                var risk     = appRiskById[app.Id];
+                var risk = appRiskById[app.Id];
                 var division = divisionById[app.Id];
-                var products = (productIdsByApp.TryGetValue(app.Id, out var pids) ? pids : [])
-                    .Where(pid => productById.ContainsKey(pid))
-                    .Select(pid =>
+                var products = reach.ProductsReachedByApplication(app.Id)
+                    .Select(product =>
                     {
-                        var product = productById[pid];
-                        var pRisk   = ProductRiskFor(pid);
-                        return new ProductRefDto(pid, product.Name, product.ArrUsd,
-                            pRisk.ToString().ToLowerInvariant());
+                        var productRisk = ProductRiskFor(product.Id);
+                        return new ProductRefDto(
+                            product.Id,
+                            product.Name,
+                            product.ArrUsd,
+                            productRisk.ToString().ToLowerInvariant());
                     })
-                    .OrderBy(p => p.name)
                     .ToList();
-                var transitiveDependentApps = graph.TransitiveDependentsOf(app.Id)
-                    .Where(id => nameById.ContainsKey(id))
-                    .Select(id =>
+                var transitiveDependentApps = reach.TransitiveDependentApplications(app.Id)
+                    .Select(dependentApp =>
                     {
-                        var depRisk = appRiskById.TryGetValue(id, out var r) ? r : RiskLevel.Low;
-                        return new ContributingAppDto(id, nameById[id], depRisk.ToString().ToLowerInvariant(), divisionById[id]);
+                        var depRisk = appRiskById.TryGetValue(dependentApp.Id, out var r) ? r : RiskLevel.Low;
+                        return new ContributingAppDto(
+                            dependentApp.Id,
+                            dependentApp.Name,
+                            depRisk.ToString().ToLowerInvariant(),
+                            dependentApp.Division);
                     })
-                    .OrderBy(d => d.name)
                     .ToList();
                 var totalArr = products.Sum(p => p.arr_usd);
                 var n = products.Count;

@@ -8,9 +8,17 @@ public class ProductRiskReporter(WorkforceDbContext context)
 {
     public async Task<ProductRiskSummary> ReportAsync(string month, int? productId = null)
     {
-        var appRisks = await new ApplicationRiskReporter(context).ReportAsync(month);
-        var riskByAppId = appRisks.ToDictionary(a => a.id, a =>
-            Enum.Parse<RiskLevel>(a.risk, ignoreCase: true));
+        var applications = await context.Applications
+            .Include(a => a.Activities)
+            .ToListAsync();
+        var snapshot = await MonthlyAllocationSnapshot.LoadAsync(context, month);
+
+        var riskByAppId = applications.ToDictionary(
+            app => app.Id,
+            app => RiskCalculator.ClassifyApplication(
+                snapshot.SupportCoverageOf(app.Id),
+                app.MinSupportFte,
+                app.RecommendedSupportFte));
 
         var edges = await context.ApplicationDependencies
             .Select(d => new { d.ApplicationId, d.DependsOnApplicationId })
@@ -19,62 +27,54 @@ public class ProductRiskReporter(WorkforceDbContext context)
             .Select(pa => new { pa.ProductId, pa.ApplicationId })
             .ToListAsync();
 
+        var products = await context.Products.ToListAsync();
         var graph = new DependencyGraph(
             edges.Select(e => (e.ApplicationId, e.DependsOnApplicationId)),
             productApps.Select(pa => (pa.ProductId, pa.ApplicationId)));
+        var reach = new RiskReach(
+            graph,
+            productApps.Select(pa => (pa.ProductId, pa.ApplicationId)),
+            products.Select(p => new RiskReachProduct(p.Id, p.Name, p.ArrUsd)),
+            applications.Select(a => new RiskReachApplication(
+                a.Id,
+                a.Name,
+                a.Activities.FirstOrDefault()?.Division ?? "")),
+            edges.Select(e => (e.ApplicationId, e.DependsOnApplicationId)));
 
-        var products = await context.Products.ToListAsync();
         if (productId.HasValue)
             products = products.Where(p => p.Id == productId.Value).ToList();
 
-        var paByProduct = productApps
-            .GroupBy(pa => pa.ProductId)
-            .ToDictionary(g => g.Key, g => g.Select(pa => pa.ApplicationId).ToHashSet());
-
-        var directDepsOfApp = edges
-            .GroupBy(e => e.ApplicationId)
-            .ToDictionary(g => g.Key, g => g.Select(e => e.DependsOnApplicationId).ToList());
-
-        string RiskStr(int appId) =>
-            (riskByAppId.TryGetValue(appId, out var r) ? r : RiskLevel.Low).ToString().ToLowerInvariant();
-
-        string AppName(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.name ?? "";
-        string AppDivision(int appId) => appRisks.FirstOrDefault(a => a.id == appId)?.division ?? "";
-
-        var paTuples = productApps.Select(pa => (pa.ProductId, pa.ApplicationId));
-
         var productList = products.Select(product =>
         {
-            var directAppIds = paByProduct.TryGetValue(product.Id, out var d) ? d : [];
-            var closure = BuildProductClosure(product.Id, paTuples, graph);
+            var riskApplications = reach.ProductRiskApplications(product.Id, riskByAppId);
 
-            var contributing = closure
-                .Select(id => new { id, risk = riskByAppId.TryGetValue(id, out var r) ? r : RiskLevel.Low, name = AppName(id) })
-                .Where(a => a.name != "")
-                .OrderByDescending(a => a.risk)
-                .ThenBy(a => a.name)
+            var contributing = riskApplications
                 .Take(10)
-                .Select(a => new ContributingAppDto(a.id, a.name, a.risk.ToString().ToLowerInvariant(), AppDivision(a.id)))
+                .Select(a => new ContributingAppDto(
+                    a.Application.Id,
+                    a.Application.Name,
+                    a.Risk.ToString().ToLowerInvariant(),
+                    a.Application.Division))
                 .ToList();
 
-            var maxRisk = closure
-                .Select(id => riskByAppId.TryGetValue(id, out var r) ? r : RiskLevel.Low)
-                .Aggregate(RiskLevel.Low, (acc, r) => r > acc ? r : acc);
+            var maxRisk = RiskCalculator.AggregateProductRisk(riskApplications.Select(a => a.Risk));
 
-            var directAppNodes = directAppIds
-                .Select(appId =>
+            var directAppNodes = reach.DirectApplicationRisks(product.Id, riskByAppId)
+                .Select(app =>
                 {
-                    var deps = (directDepsOfApp.TryGetValue(appId, out var depList) ? depList : [])
-                        .Where(depId => AppName(depId) != "")
-                        .Select(depId => new ContributingAppDto(depId, AppName(depId), RiskStr(depId), AppDivision(depId)))
-                        .OrderByDescending(a => a.risk)
-                        .ThenBy(a => a.name)
+                    var deps = reach.DirectDependencyRisks(app.Application.Id, riskByAppId)
+                        .Select(dep => new ContributingAppDto(
+                            dep.Application.Id,
+                            dep.Application.Name,
+                            dep.Risk.ToString().ToLowerInvariant(),
+                            dep.Application.Division))
                         .ToList();
-                    return new DirectAppNodeDto(appId, AppName(appId), RiskStr(appId), deps);
+                    return new DirectAppNodeDto(
+                        app.Application.Id,
+                        app.Application.Name,
+                        app.Risk.ToString().ToLowerInvariant(),
+                        deps);
                 })
-                .Where(a => a.name != "")
-                .OrderByDescending(a => a.risk)
-                .ThenBy(a => a.name)
                 .ToList();
 
             return new ProductRiskDto(
@@ -96,21 +96,5 @@ public class ProductRiskReporter(WorkforceDbContext context)
             productList.Where(p => p.risk == "high").Sum(p => p.arr),
             productList.Where(p => p.risk == "medium").Sum(p => p.arr),
             productList);
-    }
-
-    internal static HashSet<int> BuildProductClosure(
-        int productId,
-        IEnumerable<(int ProductId, int ApplicationId)> productApps,
-        DependencyGraph graph)
-    {
-        var directAppIds = productApps
-            .Where(pa => pa.ProductId == productId)
-            .Select(pa => pa.ApplicationId)
-            .ToList();
-        var closure = new HashSet<int>(directAppIds);
-        foreach (var appId in directAppIds)
-            foreach (var dep in graph.TransitiveDependenciesOf(appId))
-                closure.Add(dep);
-        return closure;
     }
 }

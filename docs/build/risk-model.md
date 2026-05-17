@@ -33,6 +33,16 @@ Product risk = max risk over the transitive closure of:
 
 Aggregation rule: max-wins. Any high-risk app in the closure makes the product high risk. Order: high > medium > low. No alternative aggregation rules in scope.
 
+## Risk reach
+
+`RiskReach` wraps `DependencyGraph` and owns exposure questions over the application dependency graph:
+- product closure: direct product applications plus transitive dependencies
+- products reached by an application: products whose closure contains that application, ordered by product name
+- transitive dependent applications: applications that depend on the queried application, ordered by application name
+- product risk inputs and direct app/dependency nodes, ordered by risk descending then application name
+
+`RiskReach` does not classify application risk. `RiskCalculator.ClassifyApplication` remains the source of application High / Medium / Low classification, and `RiskCalculator.AggregateProductRisk` remains the max-wins product aggregation helper. Reporters own REST/tool DTOs and pre-rendered prose.
+
 ## Cost attribution boundary
 
 Cost attribution is unchanged by the risk model. Risk uses transitive `application_dependencies`; cost uses direct `product_applications` only. The Unattributed line in `get_cost_by_product` continues to capture support cost for foundational apps that no product directly lists.
