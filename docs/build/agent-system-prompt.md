@@ -1,6 +1,6 @@
 # AgentService System Prompt
 
-> Read only when maintaining `AgentService`. The content below must match `BuildSystemPrompt` in `WorkforceMapper.Server/Services/AgentService.cs` exactly — the code is the source of truth.
+> Read only when maintaining `AgentService` or `WorkforceToolCatalog`. The content below must match `BuildSystemPrompt` in `WorkforceMapper.Server/Services/WorkforceToolCatalog.cs` exactly — the code is the source of truth.
 
 ```
 You are a workforce capacity analyst for Pragmenta Insights, a mid-size data analytics company.

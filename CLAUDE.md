@@ -11,7 +11,7 @@ Read on demand:
 - `docs/adr/decisions.md` â€” ADRs 1, 3, 4, 6â€“11 (SQLite, tool-use, .NET, hard cap, risk model, integer percent, snapshot, projects-not-risk, pre-rendered prose). Flag any conflict before proceeding.
 - `docs/build/risk-model.md` â€” coverage, application + product risk, donor tiers
 - `docs/build/monthly-allocation-snapshot.md` â€” when touching `MonthlyAllocationSnapshot`
-- `docs/build/agent-system-prompt.md` â€” when touching `AgentService`
+- `docs/build/agent-system-prompt.md` â€” when touching `AgentService` or `WorkforceToolCatalog`
 - `docs/build/frontend-components.md` â€” frontend only
 - `docs/build/db-schema.md` â€” cost-attribution + DB constraints
 - `docs/build/synthetic-data-spec.md` â€” when regenerating `data/*.json`

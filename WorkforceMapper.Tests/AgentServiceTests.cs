@@ -64,7 +64,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("What is our capacity?", "2026-05", _ => Task.CompletedTask);
 
         // At least one GetMessageAsync call must include a tool result for tc_1
@@ -90,7 +90,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("What does each product cost?", "2026-05", _ => Task.CompletedTask);
 
         mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
@@ -117,7 +117,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(TokenStream("Platform ", "Engineering ", "has 23 resources."));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         var tokens = new List<string>();
         await service.RunAsync("Tell me about capacity.", "2026-05", t =>
         {
@@ -143,7 +143,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("No tools needed."));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         Assert.NotNull(captured?.Tools);
@@ -164,7 +164,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var appRiskTool = captured!.Tools!.Single(t => t.Function?.Name == "get_application_risk");
@@ -184,7 +184,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         Assert.Equal(0, captured!.Temperature);
@@ -216,7 +216,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Is AuthService at risk?", "2026-05", _ => Task.CompletedTask);
 
         Assert.NotNull(toolResultJson);
@@ -242,7 +242,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Which applications are high risk?", "2026-05", _ => Task.CompletedTask);
 
         mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
@@ -267,7 +267,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Which products are affected by high risk apps?", "2026-05", _ => Task.CompletedTask);
 
         mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
@@ -291,7 +291,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         Assert.NotNull(captured?.Tools);
@@ -312,7 +312,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Who could be moved to support AuthService?", "2026-05", _ => Task.CompletedTask);
 
         mock.Verify(c => c.GetMessageAsync(It.Is<MessageParameters>(p =>
@@ -353,7 +353,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Where can we find capacity for AuthService?", "2026-05", _ => Task.CompletedTask);
 
         Assert.NotNull(toolResultJson);
@@ -375,7 +375,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
@@ -399,7 +399,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
@@ -422,7 +422,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
@@ -444,7 +444,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
@@ -469,7 +469,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
@@ -493,7 +493,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
@@ -515,7 +515,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
@@ -539,7 +539,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
@@ -559,7 +559,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_donor_candidates");
@@ -582,7 +582,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         Assert.NotNull(captured?.Tools);
@@ -614,7 +614,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Which projects are consuming the most capacity?", "2026-05", _ => Task.CompletedTask);
 
         Assert.NotNull(toolResultJson);
@@ -634,7 +634,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
@@ -659,7 +659,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("Summarise capacity and product cost.", "2026-05", _ => Task.CompletedTask);
 
         // GetMessageAsync called 3 times total (tool1 → tool2 → end_turn)
@@ -695,7 +695,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync(
             "Why is AuthService at risk this month and where could we find the capacity to fix it?",
             "2026-05",
@@ -728,7 +728,7 @@ public class AgentServiceTests
         mock.Setup(c => c.StreamMessageAsync(It.IsAny<MessageParameters>()))
             .Returns(EmptyStream());
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync(
             "What unallocated resource cost does Data Collection carry this month?",
             "2026-05", _ => Task.CompletedTask);
@@ -763,7 +763,7 @@ public class AgentServiceTests
             .ReturnsAsync(EndTurnResponse("Zero idle resources."))   // first: no tool
             .ReturnsAsync(EndTurnResponse("Still no tool, sorry.")); // second: no tool again
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         var tokens = new List<string>();
         await service.RunAsync("What unallocated cost does Data Collection carry?", "2026-05",
             t => { tokens.Add(t); return Task.CompletedTask; });
@@ -786,7 +786,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var tool = captured!.Tools!.Single(t => t.Function?.Name == "get_capacity_by_division");
@@ -806,7 +806,7 @@ public class AgentServiceTests
             .Callback<MessageParameters>(p => captured ??= p)
             .ReturnsAsync(EndTurnResponse("ok"));
 
-        var service = new AgentService(mock.Object, dataService);
+        var service = new AgentService(mock.Object, new WorkforceToolCatalog(dataService));
         await service.RunAsync("ping", "2026-05", _ => Task.CompletedTask);
 
         var systemText = string.Concat(captured!.System!.Select(s => s.Text));
