@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ProjectsView from './ProjectsView';
+import ProjectsView from '../../pages/ProjectsView';
 
 const PROJECTS = [
   { id: 1, name: 'P03 Charlie', divisions: ['Analytics', 'Platform Engineering'], allocation_fte: 2.0 },

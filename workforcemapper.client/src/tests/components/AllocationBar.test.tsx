@@ -1,6 +1,6 @@
 import { render, container } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import AllocationBar from './AllocationBar';
+import AllocationBar from '../../components/AllocationBar';
 
 describe('AllocationBar', () => {
   it('renders a green bar for normal allocation', () => {

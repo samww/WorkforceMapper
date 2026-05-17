@@ -1,6 +1,6 @@
 import type { ProductRisk } from './ProductsView';
-import MermaidDiagram from './MermaidDiagram';
-import { buildProductMermaid } from './diagramBuilders';
+import MermaidDiagram from '../components/MermaidDiagram';
+import { buildProductMermaid } from '../diagramBuilders';
 
 function formatArr(usd: number) {
   return `$${(usd / 1_000_000).toFixed(1)}m`;

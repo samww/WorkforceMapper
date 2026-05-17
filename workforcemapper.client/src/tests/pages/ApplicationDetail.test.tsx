@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
-import ApplicationDetail from './ApplicationDetail';
+import ApplicationDetail from '../../pages/ApplicationDetail';
 
 const APP = {
   id: 4, name: 'AuthService', division: 'Platform Engineering',

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildProductMermaid } from './diagramBuilders';
-import type { DirectAppNode } from './ProductsView';
+import { buildProductMermaid } from '../diagramBuilders';
+import type { DirectAppNode } from '../pages/ProductsView';
 
 describe('buildProductMermaid', () => {
   it('returns header, classDefs, and product circle node', () => {

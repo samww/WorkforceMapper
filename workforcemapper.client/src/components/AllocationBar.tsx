@@ -1,4 +1,4 @@
-import type { ResourceMapping } from './types';
+import type { ResourceMapping } from '../types';
 
 interface Props {
   percent: number;

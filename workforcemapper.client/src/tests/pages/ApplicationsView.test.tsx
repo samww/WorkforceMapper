@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ApplicationsView, { CoverageBar } from './ApplicationsView';
+import ApplicationsView, { CoverageBar } from '../../pages/ApplicationsView';
 
 const APPS = [
   { id: 4, name: 'AuthService', division: 'Platform Engineering', min_support_fte: 4.0, recommended_support_fte: 5.0, current_coverage_fte: 3.0, risk: 'high', dependent_products: [] },

@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import App from './App';
+import App from '../App';
 
 function mockFetch() {
   vi.spyOn(globalThis, 'fetch').mockImplementation(() =>

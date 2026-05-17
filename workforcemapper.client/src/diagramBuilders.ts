@@ -1,4 +1,4 @@
-import type { DirectAppNode } from './ProductsView';
+import type { DirectAppNode } from './pages/ProductsView';
 
 const CLASS_DEFS = [
   'classDef high fill:#dc2626,color:#fff,stroke:#991b1b',

@@ -1,7 +1,7 @@
 import { render, screen, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import MappingView from './MappingView';
+import MappingView from '../../pages/MappingView';
 
 const RESOURCES = [
   {

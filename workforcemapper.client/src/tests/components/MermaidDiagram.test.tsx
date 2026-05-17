@@ -1,6 +1,6 @@
 import { render, act, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import MermaidDiagram from './MermaidDiagram';
+import MermaidDiagram from '../../components/MermaidDiagram';
 
 let resolvers: Array<() => void> = [];
 let mockSvg = '<svg>diagram</svg>';

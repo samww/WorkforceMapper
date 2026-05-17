@@ -1,5 +1,23 @@
 # Frontend Component Reference
 
+## Source layout
+
+```
+workforcemapper.client/src/
+├── App.tsx, App.css, index.css, main.tsx   ← shell, entry point
+├── diagramBuilders.ts, types.ts            ← shared utilities / types
+├── assets/
+├── components/   AllocationBar, ChatPanel, MermaidDiagram, ToolCallIndicator
+├── pages/        ApplicationDetail, ApplicationsView, MappingView,
+│                 ProductDetail, ProductsView, ProjectsView
+└── tests/
+    ├── App.test.tsx, diagramBuilders.test.ts
+    ├── components/   (mirrors components/)
+    └── pages/        (mirrors pages/)
+```
+
+New reusable components go in `components/`; new top-level section screens go in `pages/`; tests mirror the source folder they test.
+
 ## Detail screen components
 
 `ApplicationDetail` — shows support coverage bar, clickable dependent-products table, and back navigation. Props: `app`, `onBack`, `onNavigateToProduct(id)`, `backLabel?` (defaults `"Back to Applications"`; set to product name when navigating back from a product).

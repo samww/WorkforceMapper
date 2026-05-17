@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Resource, Activity, ResourceMapping } from './types';
-import AllocationBar from './AllocationBar';
+import type { Resource, Activity, ResourceMapping } from '../types';
+import AllocationBar from '../components/AllocationBar';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import MappingView from './MappingView';
-import ChatPanel from './ChatPanel';
-import ApplicationsView from './ApplicationsView';
-import type { ApplicationRisk } from './ApplicationsView';
-import ApplicationDetail from './ApplicationDetail';
-import ProductsView from './ProductsView';
-import type { ProductRisk } from './ProductsView';
-import ProductDetail from './ProductDetail';
-import ProjectsView from './ProjectsView';
+import MappingView from './pages/MappingView';
+import ChatPanel from './components/ChatPanel';
+import ApplicationsView from './pages/ApplicationsView';
+import type { ApplicationRisk } from './pages/ApplicationsView';
+import ApplicationDetail from './pages/ApplicationDetail';
+import ProductsView from './pages/ProductsView';
+import type { ProductRisk } from './pages/ProductsView';
+import ProductDetail from './pages/ProductDetail';
+import ProjectsView from './pages/ProjectsView';
 
 type Tab = 'mappings' | 'applications' | 'products' | 'projects';
 
