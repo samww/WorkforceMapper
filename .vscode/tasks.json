@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-server",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/WorkforceMapper.Server/WorkforceMapper.Server.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    }
+  ]
+}

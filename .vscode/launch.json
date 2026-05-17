@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Frontend: Vite",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/workforcemapper.client"
+    },
+    {
+      "name": "Backend: ASP.NET Core",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-server",
+      "program": "${workspaceFolder}/WorkforceMapper.Server/bin/Debug/net10.0/WorkforceMapper.Server.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/WorkforceMapper.Server",
+      "stopAtEntry": false,
+      "envFile": "${workspaceFolder}/.env",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "WorkforceMapper Full Stack",
+      "configurations": [
+        "Frontend: Vite",
+        "Backend: ASP.NET Core"
+      ]
+    }
+  ]
+}
