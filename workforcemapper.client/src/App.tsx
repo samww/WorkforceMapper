@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import MappingView from './MappingView';
 import ChatPanel from './ChatPanel';
 import ApplicationsView from './ApplicationsView';
@@ -22,6 +22,7 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('mappings');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<ApplicationRisk | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductRisk | null>(null);
   const [productBackApp, setProductBackApp] = useState<ApplicationRisk | null>(null);
@@ -29,29 +30,110 @@ export default function App() {
   const [month, setMonth] = useState(DEFAULT_MONTH);
   const [division, setDivision] = useState('All');
 
+  const tabs: Tab[] = ['mappings', 'applications', 'products', 'projects'];
+
+  function switchTopLevelSection(nextTab: Tab) {
+    setTab(nextTab);
+    setSelectedApp(null);
+    setSelectedProduct(null);
+    setProductBackApp(null);
+    setAppBackProduct(null);
+  }
+
+  function switchFromMobileDrawer(nextTab: Tab) {
+    switchTopLevelSection(nextTab);
+    setMobileNavOpen(false);
+  }
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false);
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mobileNavOpen]);
+
   return (
     <div className="flex h-screen overflow-hidden">
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 sm:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation backdrop"
+            onClick={() => setMobileNavOpen(false)}
+            className="absolute inset-0 h-full w-full bg-black/60"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Section navigation"
+            className="relative flex h-full w-[min(20rem,85vw)] flex-col border-r border-gray-700 bg-gray-900 p-4 shadow-xl"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-200">Navigation</h2>
+              <button
+                type="button"
+                aria-label="Close navigation"
+                onClick={() => setMobileNavOpen(false)}
+                className="min-h-11 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-gray-100"
+              >
+                Close
+              </button>
+            </div>
+            <nav aria-label="Mobile sections" className="flex flex-col gap-1">
+              {tabs.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => switchFromMobileDrawer(t)}
+                  className={`min-h-11 rounded-lg px-3 py-2 text-left text-sm font-medium capitalize transition-colors
+                    ${tab === t ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-gray-100'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-auto min-w-0 flex flex-col">
-        <nav className="flex gap-1 px-4 pt-4 pb-0 border-b border-gray-700 items-center">
-          {(['mappings', 'applications', 'products', 'projects'] as Tab[]).map(t => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setSelectedApp(null); setSelectedProduct(null); setProductBackApp(null); setAppBackProduct(null); }}
-              className={`px-4 py-2 text-sm font-medium capitalize rounded-t transition-colors
-                ${tab === t ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}
-            >
-              {t}
-            </button>
-          ))}
+        <header className="flex min-h-16 items-center gap-2 border-b border-gray-700 px-4 py-2">
+          <button
+            type="button"
+            aria-label="Open navigation"
+            onClick={() => setMobileNavOpen(true)}
+            className="flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-gray-100 sm:hidden"
+          >
+            <span className="h-0.5 w-5 rounded bg-current" />
+            <span className="h-0.5 w-5 rounded bg-current" />
+            <span className="h-0.5 w-5 rounded bg-current" />
+          </button>
+          <nav aria-label="Primary sections" className="hidden sm:flex gap-1 items-center">
+            {tabs.map(t => (
+              <button
+                key={t}
+                onClick={() => switchTopLevelSection(t)}
+                className={`inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium capitalize transition-colors
+                  ${tab === t ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </nav>
           {!chatOpen && (
             <button
               onClick={() => setChatOpen(true)}
-              className="ml-auto mb-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium"
+              className="ml-auto inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
             >
               Ask AI
             </button>
           )}
-        </nav>
+        </header>
 
         <div className="flex flex-wrap gap-4 px-4 py-2 border-b border-gray-800 items-center bg-gray-900">
           <div>

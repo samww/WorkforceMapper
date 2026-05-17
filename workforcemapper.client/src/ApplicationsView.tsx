@@ -125,7 +125,7 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
     const ariaSortMap = { asc: 'ascending' as const, desc: 'descending' as const };
     return {
       'aria-sort': active ? ariaSortMap[sortDir] : ('none' as const),
-      className: 'pb-2 pr-4',
+      className: `pb-2 px-2 sm:px-0 sm:pr-4 ${col === 'division' ? 'hidden sm:table-cell' : ''}`,
     };
   }
 
@@ -157,7 +157,7 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
             <th {...colHeaderProps('name')}><button className={colBtnClass('name')} onClick={() => handleSort('name')}>Name{arrow('name')}</button></th>
             <th {...colHeaderProps('division')}><button className={colBtnClass('division')} onClick={() => handleSort('division')}>Division{arrow('division')}</button></th>
             <th {...colHeaderProps('risk')}><button className={colBtnClass('risk')} onClick={() => handleSort('risk')}>Risk{arrow('risk')}</button></th>
-            <th aria-sort={sortCol === 'coverage' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} className="pb-2"><button className={colBtnClass('coverage')} onClick={() => handleSort('coverage')}>Coverage{arrow('coverage')}</button></th>
+            <th aria-sort={sortCol === 'coverage' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} className="pb-2 px-2 sm:px-0"><button className={colBtnClass('coverage')} onClick={() => handleSort('coverage')}>Coverage{arrow('coverage')}</button></th>
           </tr>
         </thead>
         <tbody>
@@ -167,14 +167,14 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
               className="border-b border-gray-800 hover:bg-gray-800 cursor-pointer"
               onClick={() => onSelectApp(app)}
             >
-              <td className="py-2 pr-4">{app.name}</td>
-              <td className="py-2 pr-4 text-gray-400">{app.division}</td>
-              <td className="py-2 pr-4">
+              <td className="py-2 px-2 sm:px-0 sm:pr-4">{app.name}</td>
+              <td className="hidden py-2 px-2 text-gray-400 sm:table-cell sm:px-0 sm:pr-4">{app.division}</td>
+              <td className="py-2 px-2 sm:px-0 sm:pr-4">
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${BADGE[app.risk]}`}>
                   {app.risk}
                 </span>
               </td>
-              <td className="py-2">
+              <td className="py-2 px-2 sm:px-0">
                 <CoverageBar current={app.current_coverage_fte} min={app.min_support_fte} recommended={app.recommended_support_fte} barMax={barMax} />
               </td>
             </tr>

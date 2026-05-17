@@ -13,6 +13,7 @@ Read on demand:
 - `docs/build/monthly-allocation-snapshot.md` - when touching `MonthlyAllocationSnapshot`.
 - `docs/build/agent-system-prompt.md` - when touching `AgentService` or `WorkforceToolCatalog`.
 - `docs/build/frontend-components.md` - frontend only.
+- `docs/build/iphone-16-pro-max-mobile-nav-applications-table.md` - implemented responsive shell nav and Applications table behavior.
 - `docs/build/db-schema.md` - cost-attribution + DB constraints.
 - `docs/build/synthetic-data-spec.md` - when regenerating `data/*.json`.
 

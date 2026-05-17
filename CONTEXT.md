@@ -48,7 +48,7 @@ resources ──< mappings >── activities ──> applications ──< produ
 - **products** — 7; $28.9m total ARR; all 7 transitively depend on AuthService
 - **applications** — 18 (`min_support_fte` and `recommended_support_fte` thresholds per application); **projects** — 12; join tables: `product_applications` (26), `project_products` (26), `application_dependencies` (directed dependency edges used for risk propagation, not cost attribution)
 
-Default month: **`2026-05`** (`DEFAULT_MONTH` constant — UI has a month dropdown; do not hardcode elsewhere). Month and division filter state lives in `App.tsx`, passed as `{ month, division }` props to all three tab views (`MappingView`, `ApplicationsView`, `ProductsView`) — do not re-introduce local state. The Ask AI button lives in the `<nav>` in `App.tsx` (always visible, `onClick={() => setChatOpen(o => !o)}`); tab views do not own or render it. Do not render Ask AI inside detail screens.
+Default month: **`2026-05`** (`DEFAULT_MONTH` constant — UI has a month dropdown; do not hardcode elsewhere). Month and division filter state lives in `App.tsx`, passed as `{ month, division }` props to all four top-level views (`MappingView`, `ApplicationsView`, `ProductsView`, `ProjectsView`) — do not re-introduce local state. The Ask AI button is owned by the global shell in `App.tsx`; top-level views and detail screens do not own or render it.
 
 Frontend component details (props, navigation state, MermaidDiagram, DependencyGraph): `docs/build/frontend-components.md`.
 

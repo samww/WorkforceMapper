@@ -14,6 +14,14 @@
 
 `App.tsx` holds `productBackApp` (ApplicationRisk | null) and `appBackProduct` (ProductRisk | null). When navigating ApplicationDetail → ProductDetail, `productBackApp` is saved; back restores the app. When navigating ProductDetail → ApplicationDetail, `appBackProduct` is saved; back restores the product. Both states are cleared on tab switch. Back button labels update to reflect the destination (`"Back to AuthService"`, `"Back to DataLicensing"`, etc.).
 
+## Responsive shell navigation
+
+`App.tsx` owns the responsive top-level shell navigation. Below Tailwind's `sm` breakpoint (`640px`), the desktop section tabs are hidden and a top-left hamburger button opens a left slide-in drawer with Mappings, Applications, Products, and Projects. At `640px` and above, the desktop tab bar is visible.
+
+`switchTopLevelSection` is the shared section-switching path for desktop tabs and mobile drawer destinations. It clears `selectedApp`, `selectedProduct`, `productBackApp`, and `appBackProduct`; drawer destination taps also close the drawer. The drawer closes via destination tap, backdrop click, Escape, and its close button. Drawer width is `min(20rem, 85vw)`. `Ask AI`, Month, and Division remain visible global controls outside the drawer.
+
+For the Applications screen mobile layout, the table remains a table. The `Division` header and cells use `hidden sm:table-cell`, and mobile cells use tighter horizontal padding while preserving desktop spacing. The global Division filter is the mobile way to work by division; there is no visible mobile sort control for the hidden Division column.
+
 ## DependencyGraph
 
 `TransitiveDependentsOf(appId)` — BFS over `_reverseEdges` (built in the constructor from the same edge list with source/target swapped). Returns all apps that directly or transitively depend on `appId`, excluding `appId` itself.

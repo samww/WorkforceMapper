@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ApplicationsView, { CoverageBar } from './ApplicationsView';
 
@@ -87,6 +87,39 @@ describe('ApplicationsView', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
     expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('marks the Division column hidden below the small breakpoint', async () => {
+    mockFetch();
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+
+    await screen.findByText('AuthService');
+
+    const divisionHeader = screen.getByRole('columnheader', { name: /division/i });
+    expect(divisionHeader).toHaveClass('hidden');
+    expect(divisionHeader).toHaveClass('sm:table-cell');
+    expect(within(divisionHeader).getByRole('button', { name: /division/i })).toBeInTheDocument();
+
+    const firstDataRow = screen.getAllByRole('row')[1];
+    const divisionCell = within(firstDataRow).getAllByRole('cell')[1];
+    expect(divisionCell).toHaveClass('hidden');
+    expect(divisionCell).toHaveClass('sm:table-cell');
+  });
+
+  it('uses reduced mobile table cell padding while preserving desktop spacing', async () => {
+    mockFetch();
+    render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+
+    await screen.findByText('AuthService');
+
+    const nameHeader = screen.getByRole('columnheader', { name: /name/i });
+    const firstDataRow = screen.getAllByRole('row')[1];
+    const nameCell = within(firstDataRow).getAllByRole('cell')[0];
+
+    expect(nameHeader).toHaveClass('px-2');
+    expect(nameHeader).toHaveClass('sm:pr-4');
+    expect(nameCell).toHaveClass('px-2');
+    expect(nameCell).toHaveClass('sm:pr-4');
   });
 });
 
