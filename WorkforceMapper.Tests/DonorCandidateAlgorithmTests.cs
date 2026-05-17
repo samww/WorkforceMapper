@@ -255,4 +255,59 @@ public class DonorCandidateAlgorithmTests
             Assert.Equal(3, result!.FewestChangesCombination!.RowCount);
         }
     }
+
+    // Regression for the diagnose bug: when multiple donors share a surplus app, Tier 2
+    // must drain the app's surplus as a shared pool (biggest-mapping first), not split it
+    // proportionally across every donor. With the proportional rule, this scenario needed
+    // 4 rows (each donor gives 0.25 FTE); with the pool rule, 2 rows close the gap.
+    [Fact]
+    public async Task FindAsync_SurplusSupportTier_UsesPoolBudget_NotProportional()
+    {
+        var ctx = CreateContext();
+
+        // BigSurplusApp: recommended=1.0; 4 donors at 50% each → coverage=2.0, surplus=1.0
+        ctx.Applications.Add(new Application
+        {
+            Id = 100, Name = "BigSurplusApp", MinSupportFte = 0.5, RecommendedSupportFte = 1.0
+        });
+        ctx.Activities.Add(new Activity
+        {
+            Id = 200, Name = "BigSurplusApp - Support",
+            ActivityType = "Support", ApplicationId = 100,
+            Division = "Platform Engineering"
+        });
+        await ctx.SaveChangesAsync();
+
+        // AuthService coverage = 3.0 (3 × 100%) → gap = 1.0 (min = 4.0)
+        for (var i = 1; i <= 3; i++)
+        {
+            var y = MakePeResource($"PB_Y{i:000}", $"AuthFiller {i}");
+            ctx.Resources.Add(y); await ctx.SaveChangesAsync();
+            ctx.Mappings.Add(new Mapping
+            {
+                ResourceId = y.Id, ActivityId = 5, Month = "2026-05", Percent = 100
+            });
+        }
+
+        // Activity 35 = SurveyEngine - Minor Changes (PE) — used to pad donors to 100% so they
+        // do not bring idle FTE (Tier 1) into the picture.
+        for (var i = 1; i <= 4; i++)
+        {
+            var d = MakePeResource($"PB_D{i:000}", $"PoolDonor {i}");
+            ctx.Resources.Add(d); await ctx.SaveChangesAsync();
+            ctx.Mappings.AddRange(
+                new Mapping { ResourceId = d.Id, ActivityId = 200, Month = "2026-05", Percent = 50 },
+                new Mapping { ResourceId = d.Id, ActivityId = 35,  Month = "2026-05", Percent = 50 });
+        }
+        await ctx.SaveChangesAsync();
+
+        await using (ctx)
+        {
+            var result = await new DonorCandidateAlgorithm(ctx).FindAsync(4, null, "2026-05");
+
+            Assert.NotNull(result);
+            Assert.NotNull(result!.FewestChangesCombination);
+            Assert.Equal(2, result.FewestChangesCombination!.RowCount);
+        }
+    }
 }

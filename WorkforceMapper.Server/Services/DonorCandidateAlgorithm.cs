@@ -144,6 +144,10 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
             .ToList();
     }
 
+    // Tier 2 / 6 — surplus Support. The donor application's surplus is a shared pool
+    // drained across donor mappings; each donor offers up to its full mapping percent
+    // (or the remaining pool, whichever is smaller). Drain biggest mappings first so the
+    // gap is closed in the fewest rows. See docs/build/risk-model.md.
     private static List<DonorCandidateRow> BuildSurplusSupportTier(
         IReadOnlyList<ActiveMapping> activeMappings,
         List<Application> allApplications,
@@ -157,24 +161,30 @@ public class DonorCandidateAlgorithm(WorkforceDbContext context)
         var rows = new List<DonorCandidateRow>();
         foreach (var app in allApplications)
         {
-            var surplus  = appSurplus.GetValueOrDefault(app.Id);
-            var coverage = appCoverage.GetValueOrDefault(app.Id);
-            if (surplus <= 0 || coverage <= 0) continue;
+            var surplus = appSurplus.GetValueOrDefault(app.Id);
+            if (surplus <= 0) continue;
 
-            var supportMappings = activeMappings
+            var donorMappings = activeMappings
                 .Where(am => am.Activity.ActivityType == "Support"
                              && am.Activity.ApplicationId == app.Id
-                             && !excludedResourceIds.Contains(am.Resource.Id));
+                             && !excludedResourceIds.Contains(am.Resource.Id)
+                             && (crossDiv ? am.Resource.Division != targetDivision
+                                          : am.Resource.Division == targetDivision))
+                .OrderByDescending(am => am.Percent)
+                .ToList();
 
-            foreach (var am in supportMappings)
+            var remainingSurplus = surplus;
+            foreach (var am in donorMappings)
             {
-                var isSameDiv = am.Resource.Division == targetDivision;
-                if (crossDiv == isSameDiv) continue;
+                if (remainingSurplus <= 0) break;
 
-                var donatableFte = (am.Percent / 100.0) * (surplus / coverage);
-                var impliedCost  = am.Resource.MonthlyRate * (decimal)donatableFte;
-                var gapCoverage  = gap > 0 ? donatableFte / gap * 100.0 : 0.0;
+                var donatableFte = Math.Min(am.Percent / 100.0, remainingSurplus);
                 var donablePct   = (int)Math.Round(donatableFte * 100.0);
+                if (donablePct <= 0) continue;
+                remainingSurplus -= donatableFte;
+
+                var impliedCost = am.Resource.MonthlyRate * (decimal)donatableFte;
+                var gapCoverage = gap > 0 ? donatableFte / gap * 100.0 : 0.0;
                 rows.Add(new DonorCandidateRow(
                     am.Resource.Name, am.Activity.Name, am.Activity.ActivityType,
                     am.Percent, impliedCost, donatableFte, am.Resource.MonthlyRate, gapCoverage,
