@@ -95,6 +95,25 @@ $ExistingRole = az role definition list --name $RoleName --scope $AppResourceId 
 Assert-AzSuccess '5. role definition list'
 if ($ExistingRole.Count -gt 0) {
     Write-Host "Updating existing custom role '$RoleName' ..."
+    $ExistingRoleId = $ExistingRole[0].id
+    $RoleJsonWithId = @"
+{
+  "Id": "$ExistingRoleId",
+  "Name": "$RoleName",
+  "IsCustom": true,
+  "Description": "Read and write Easy Auth config for one Container App.",
+  "Actions": [
+    "Microsoft.App/containerApps/read",
+    "Microsoft.App/containerApps/authConfigs/read",
+    "Microsoft.App/containerApps/authConfigs/write"
+  ],
+  "NotActions": [],
+  "AssignableScopes": [
+    "$AppResourceId"
+  ]
+}
+"@
+    $RoleJsonWithId | Out-File -FilePath $TempFile -Encoding utf8
     az role definition update --role-definition $TempFile | Out-Null
     Assert-AzSuccess '5. role definition update'
 } else {
