@@ -188,4 +188,4 @@ GitHub Actions delivers the same phone-friendly UX (~5 taps from the mobile app,
 - Resource names (`workforce-mapper`, `rg-workforce-mapper`) are hardcoded in the workflows because they match the deploy defaults and there is only one environment. A second environment would require parameterising both workflows and `scripts/deploy.ps1` consistently.
 - Setup is implemented in `scripts/setup_demo_auth_toggle.ps1` and must remain idempotent on re-run (matching the pattern in `scripts/setup_auth.ps1`).
 
-See `docs/build/demo-auth-toggle.md` for the full implementation spec.
+See `docs/build/issue-58-demo-auth-toggle.md` for the full implementation spec.
