@@ -1,0 +1,38 @@
+name: Demo - disable auth (allow anonymous)
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: demo-auth-toggle
+  cancel-in-progress: false
+
+jobs:
+  toggle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sign in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set unauthenticated-client-action to AllowAnonymous
+        run: |
+          az containerapp auth update \
+            --name workforce-mapper \
+            --resource-group rg-workforce-mapper \
+            --unauthenticated-client-action AllowAnonymous
+
+      - name: Verify
+        run: |
+          state=$(az containerapp auth show \
+            --name workforce-mapper \
+            --resource-group rg-workforce-mapper \
+            --query "globalValidation.unauthenticatedClientAction" -o tsv)
+          echo "unauthenticatedClientAction = $state"
+          test "$state" = "AllowAnonymous"
