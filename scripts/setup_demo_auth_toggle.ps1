@@ -127,20 +127,32 @@ $ExistingCreds = az ad app federated-credential list --id $ClientId | ConvertFro
 Assert-AzSuccess '7. federated-credential list'
 $ExistingCred  = $ExistingCreds | Where-Object { $_.name -eq $FedCredName }
 
+$FedCredJson = @"
+{
+  "name": "$FedCredName",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "$FedCredSubject",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+"@
+$FedCredFile = [System.IO.Path]::GetTempFileName() + '.json'
+$FedCredJson | Out-File -FilePath $FedCredFile -Encoding utf8
+
 if ($ExistingCred) {
     Write-Host "Updating existing federated credential '$FedCredName' ..."
     az ad app federated-credential update `
         --id $ClientId `
         --federated-credential-id $ExistingCred.id `
-        --parameters "{""subject"":""$FedCredSubject"",""issuer"":""https://token.actions.githubusercontent.com"",""audiences"":[""api://AzureADTokenExchange""],""name"":""$FedCredName""}" | Out-Null
+        --parameters $FedCredFile | Out-Null
     Assert-AzSuccess '7. federated-credential update'
 } else {
     Write-Host "Creating federated credential '$FedCredName' ..."
     az ad app federated-credential create `
         --id $ClientId `
-        --parameters "{""subject"":""$FedCredSubject"",""issuer"":""https://token.actions.githubusercontent.com"",""audiences"":[""api://AzureADTokenExchange""],""name"":""$FedCredName""}" | Out-Null
+        --parameters $FedCredFile | Out-Null
     Assert-AzSuccess '7. federated-credential create'
 }
+Remove-Item $FedCredFile -ErrorAction SilentlyContinue
 
 # -- 8. Print GitHub Secrets values and copy-paste commands -------------------
 Write-Host ""
