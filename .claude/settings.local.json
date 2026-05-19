@@ -120,7 +120,15 @@
       "Bash(Get-ChildItem docs/background -Recurse)",
       "Bash(Select-Object Name, Length)",
       "Bash(Format-Table)",
-      "Bash(xargs grep -l \"class CustomWebApplicationFactory\")"
+      "Bash(xargs grep -l \"class CustomWebApplicationFactory\")",
+      "Bash(Get-ChildItem -Path \"E:\\\\Production\\\\WorkforceMapper\\\\workforcemapper.client\\\\src\" -Recurse -Force)",
+      "Bash(Sort-Object FullName)",
+      "PowerShell(if \\(Test-Path .env\\) { Get-Content .env | Where-Object { $_ -notmatch '_KEY|_SECRET|PASSWORD' } } else { Write-Output 'no .env file' })",
+      "Bash(az provider operation show *)",
+      "PowerShell(Rename-Item *)",
+      "Bash(gh secret *)",
+      "Bash(gh run *)",
+      "PowerShell(\\(Get-Content \"E:\\\\Production\\\\WorkforceMapper\\\\CLAUDE.md\"\\).Count, \\(Get-Content \"E:\\\\Production\\\\WorkforceMapper\\\\CONTEXT.md\"\\).Count, \\(Get-Content \"E:\\\\Production\\\\WorkforceMapper\\\\docs\\\\adr\\\\decisions.md\"\\).Count)"
     ]
   }
 }

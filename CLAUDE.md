@@ -19,25 +19,11 @@ Read on demand:
 
 Use `CONTEXT.md` glossary terms.
 
-Risk reach guidance: `RiskReach` wraps `DependencyGraph` and owns product closure, products reached by an application, transitive dependent applications, and stable exposure ordering. Keep application risk classification in `RiskCalculator`; reporters should own DTO/prose assembly only.
+Risk reach: `RiskReach` wraps `DependencyGraph` — owns product closure, products reached by an application, transitive dependent applications, and stable exposure ordering. Keep application risk classification in `RiskCalculator`; reporters own DTO/prose assembly only.
 
 ## Issue Management
 
 For triage / issue work only:
 
 - `docs/agents/issue-tracker.md` - `gh` CLI conventions.
-- `docs/agents/triage-labels.md` - label vocabulary.
-
-## Agent Skills
-
-### Issue Tracker
-
-Issues are tracked in this repo's GitHub Issues via the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage Labels
-
-The triage label vocabulary uses the canonical labels `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain Docs
-
-This repo uses a single-context domain-doc layout with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+- `docs/agents/triage-labels.md` - label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`).

@@ -1,16 +1,15 @@
-﻿# Architecture Decision Records
+# Architecture Decision Records
 
 ---
 
 ## ADR 1: SQLite + EF Core
 
-**Decision:** SQLite (file-based, zero Azure cost, runnable with docker compose up) with EF Core (idiomatic .NET ORM, code-first migrations, InMemory provider for tests).
+**Decision:** SQLite (file-based, zero Azure cost, runnable with `docker compose up`) with EF Core (idiomatic .NET ORM, code-first migrations, InMemory provider for tests).
 
 **Key constraints:**
-- No concurrent writes — single-user demo; acceptable.
-- WAL journal mode enabled at startup (`PRAGMA journal_mode=WAL` in `Program.cs` after `MigrateAsync`). Required because ASP.NET Core handles requests concurrently; without WAL, simultaneous reads and a write cause `SQLITE_BUSY` → 500. WAL is a persistent file setting, idempotent to set on every boot.
-- Azure Container Apps is pinned to exactly 1 replica (`--min-replicas 1 --max-replicas 1` in `scripts/deploy.ps1`). SQLite cannot be shared across processes; multiple replicas each get an isolated copy of the database, causing split-brain state.
-- SQLite file persisted via named Docker volume (local); ephemeral per container restart in Azure (reseeds from `data/*.json` on every boot — by design for a demo).
+- WAL journal mode enabled at startup (`PRAGMA journal_mode=WAL` after `MigrateAsync`) — required because ASP.NET Core handles requests concurrently; without WAL, simultaneous reads and a write cause `SQLITE_BUSY` → 500. Idempotent to set on every boot.
+- Azure Container Apps pinned to exactly 1 replica (`--min-replicas 1 --max-replicas 1` in `scripts/deploy.ps1`) — SQLite cannot be shared across processes.
+- SQLite file persisted via named Docker volume locally; ephemeral per container restart in Azure (reseeds from `data/*.json` on every boot — by design).
 - Switching to Azure SQL = replace connection string + provider package only; entities, migrations, and LINQ queries are database-agnostic.
 
 ---
@@ -19,17 +18,12 @@
 
 **Decision:** Eight typed tools (`get_capacity_by_division`, `get_activity_allocations`, `get_unallocated_resources`, `get_cost_by_product`, `get_application_risk`, `get_product_risk`, `get_donor_candidates`, `get_project_allocation`) implemented as EF Core queries in `DataService.cs`. Claude calls tools; never sees schema or executes SQL.
 
-**Why not NL-to-SQL:**
-- Security: tool-use exposes only eight read operations; NL-to-SQL exposes the full schema.
-- Predictability: tool response shapes are typed and fixed; NL-to-SQL output varies per query.
-- Testability: each tool is a C# method with a defined signature; tool call selection is assertable in unit tests.
-
 **Key constraints:**
 - Fixed surface area — questions outside the eight tools cannot be answered (data limitation, not a tool limitation).
-- `get_cost_by_product` includes an explicit `"Unattributed"` line for cost not traceable to any product — this is intentional, not a data quality issue.
-- `get_application_risk` and `get_product_risk` expose capacity coverage, risk classification, and dependent product ARR; they replace the former `get_overallocated_resources` tool (removed in issue #14).
-- `get_donor_candidates` returns active resources whose capacity could shift onto an under-resourced application's Support activity, in eight-tier priority order (same-division tiers 1–4, cross-divisional tiers 5–8); added in issue #29.
-- `get_project_allocation` returns FTE allocated to each project with pre-computed `total_project_allocation_fte` and `projects_ranked_by_allocation`; added in issue #47. Projects carry no risk classification (ADR 10).
+- `get_cost_by_product` includes an explicit `"Unattributed"` line for cost not traceable to any product — intentional, not a data quality issue.
+- `get_application_risk` and `get_product_risk` expose coverage, risk classification, and dependent product ARR; replaced the former `get_overallocated_resources` tool (removed in issue #14).
+- `get_donor_candidates` returns candidates in eight-tier priority order (same-division tiers 1–4, cross-divisional tiers 5–8); added in issue #29.
+- `get_project_allocation` returns FTE allocated to each project with `total_project_allocation_fte` and `projects_ranked_by_allocation`; added in issue #47. Projects carry no risk classification (ADR 10).
 - All eight tools accept optional `month` parameter defaulting to the selected month.
 
 ---
@@ -40,101 +34,66 @@
 
 **Key constraints:**
 - All API endpoints must be `[ApiController]` classes — do not inline handlers in `Program.cs`.
-- Use `Anthropic.SDK` for all AI calls — no other AI SDK.
+- Use `Anthropic.SDK` (`claude-haiku-4-5-20251001`) for all AI calls — no other AI SDK.
 
 ---
 
 ## ADR 6: Hard 100% allocation cap, API-enforced
 
-**Decision:** `PUT /api/mappings` and `DELETE /api/mappings` enforce a hard cap. Writes that push a resource above 100% in a given month are rejected with 400 + `would_exceed_cap`. Writes against a month in which the resource is inactive are rejected with 400 + `resource_inactive_in_month`.
-
-**Why:** Over-allocation is a symptom rather than a tracked operational state once the tool diagnoses risk. Surfacing impossible states weakens trust in the diagnostic frame. Recording a resource at 112% in the tool implies the tool permits operational over-commitment; the risk model renders that framing obsolete.
-
-**Alternatives considered and rejected:**
-- SQLite cross-row CHECK constraints — would require triggers; the seed pipeline is the only other writer, so API enforcement is sufficient and keeps the constraint logic in one testable place.
-- Soft warning UI — keeps the door open for symptom-tracking and contradicts the new premise that the tool answers "is this application safe?" rather than "how over-committed is this person?".
+**Decision:** `PUT /api/mappings` and `DELETE /api/mappings` enforce a hard cap. Writes that push a resource above 100% in a given month → 400 + `would_exceed_cap`. Writes against an inactive month → 400 + `resource_inactive_in_month`.
 
 **Key constraints:**
-- The cap rule and the inactive-month rule are owned by `AllocationValidator` (single source of truth).
+- The cap rule and inactive-month rule are owned by `AllocationValidator` (single source of truth).
 - Seed data is held to the same invariant: every active resource's monthly total is `<= 100%`.
 
 ---
 
 ## ADR 7: Capacity-driven application risk model
 
-**Decision:** Each application carries `min_support_fte` and `recommended_support_fte` thresholds. Coverage is the sum of `(mapping.percent / 100)` across active resources mapped to the application's Support activity for the month. Risk classification: `coverage < min` → high; `min <= coverage < recommended` → medium; `coverage >= recommended` → low. Product risk = max risk over the transitive closure of (direct apps + their `application_dependencies`). Aggregation rule is max-wins.
-
-**Why:** Over-allocation as a primary insight is a symptom. The diagnostic question is whether each application has enough support to keep running safely. Thresholds + coverage make that question answerable and directly connect to the business impact (dependent product ARR) exposed in the same view.
-
-**Alternatives considered and rejected:**
-- Weighted or count-based product aggregation. Max-wins is unambiguous and matches business framing: if any critical application is at risk, the product is at risk.
-- Cost pro-rating across the application dependency graph. Cost stays attributed to direct `product_applications` only; the Unattributed line absorbs foundational infrastructure spend. Mixing cost attribution with risk propagation would conflate two distinct questions.
-- Skill modelling on resources. Out of scope; the demo narrative references skill match informally without encoding it as a data constraint.
+**Decision:** Each application carries `min_support_fte` and `recommended_support_fte` thresholds. Coverage = sum of `(mapping.percent / 100)` across active resources on the application's Support activity. Risk: `coverage < min` → high; `min <= coverage < recommended` → medium; `coverage >= recommended` → low. Product risk = max-wins over the transitive closure of direct apps + their `application_dependencies`.
 
 **Key constraints:**
 - Risk classification is owned by `RiskCalculator` (single source of truth).
 - Dependency graph traversal is owned by `DependencyGraph`; BFS with visited-set termination handles cycles.
-- Cost attribution is unchanged. The Unattributed line behaviour is preserved.
+- Cost attribution is unchanged — Unattributed line behaviour is preserved.
 
 ---
 
 ## ADR 8: Integer-only mapping percent
 
-**Decision:** `mapping.Percent` is a positive integer in the range 1–100. The API rejects fractional values and zero. The frontend enforces integers at the input layer (`step="1"`, `parseInt`). Computed aggregates (`allocation_pct`, `current_coverage_fte`) remain fractional decimals derived from integer inputs.
-
-**Why:** Fractional percents (e.g. 13.5%) imply a precision that does not exist in this tool. Workforce allocation is estimated, not measured; the appearance of decimal precision misleads users. Integer inputs simplify the UI, remove a class of floating-point edge cases from the cap validator, and make the seed data generator straightforward.
-
-**Alternatives considered and rejected:**
-- One-decimal precision (e.g. 13.5%) — the precision is cosmetic; the underlying data is still estimation. Adds complexity (float equality checks, generator rounding) for no meaningful gain.
-- Rounding fractional inputs silently on write — hides the constraint from callers; a clear rejection with `would_exceed_cap` is more honest than silent mutation.
+**Decision:** `mapping.Percent` is a positive integer (1–100). The API rejects fractional values and zero. The frontend enforces integers at the input layer (`step="1"`, `parseInt`). Computed aggregates remain fractional decimals derived from integer inputs.
 
 **Key constraints:**
-- `AllocationValidator` is the single enforcement point: rejects `percent < 1`. `Mapping.Percent` is typed as `int`, so non-integer values are rejected at the model-binding layer before reaching the validator.
-- The frontend enforces integers at the input layer: `type="text"` with `inputMode="numeric"`, `onChange` strips non-digit characters, `parseInt` on submit.
+- `AllocationValidator` is the single enforcement point: rejects `percent < 1`. `Mapping.Percent` is typed as `int`, so non-integer values are rejected at model-binding before reaching the validator.
+- The frontend enforces integers: `type="text"` with `inputMode="numeric"`, `onChange` strips non-digit characters, `parseInt` on submit.
 - Seed data must be regenerated from scratch using a largest-remainder integer distribution; do not patch existing fractional rows.
-- The `data/mappings.json` invariant is unchanged: every active resource's monthly total is exactly 100%.
+- `data/mappings.json` invariant: every active resource's monthly total is exactly 100%.
 
 ---
 
 ## ADR 9: MonthlyAllocationSnapshot is the canonical mapping-state primitive
 
-**Decision:** A `MonthlyAllocationSnapshot` module owns per-month-state arithmetic for the seven tool methods. Each tool calls `await MonthlyAllocationSnapshot.LoadAsync(context, month)` at the top of its body, then projects from the snapshot's `ActiveResources`, `ActiveMappings`, and `SupportCoverageOf(applicationId)`. New tool methods consume the snapshot rather than re-querying.
+**Decision:** `MonthlyAllocationSnapshot` owns per-month-state arithmetic for all tool methods. Each tool calls `await MonthlyAllocationSnapshot.LoadAsync(context, month)`, then projects from `ActiveResources`, `ActiveMappings`, and `SupportCoverageOf(applicationId)`. New tool methods consume the snapshot rather than re-querying.
 
-The snapshot owns: the active-flag rule (resources contribute only when their month flag = 1), the cost rule (`monthly_rate × percent / 100`), per-resource allocation percent and idle FTE, per-mapping allocated cost, and capacity coverage per application. The snapshot does **not** own risk classification (`RiskCalculator`), dependency closures (`DependencyGraph`), max-wins risk aggregation (`RiskCalculator.AggregateProductRisk`), donor-tier orchestration, or product/project cost attribution.
-
-**Why:** `DataService` re-derives the same arithmetic in seven tool methods today. The deletion test on the snapshot passes — removing it scatters the same arithmetic back across seven methods. A shared primitive prevents drift (e.g. the integer-division bug fixed in #36 was possible because the per-division and overall paths each had their own cast of `m.Percent`).
-
-**Alternatives considered and rejected:**
-- **Snapshot exposes raw mappings only; coverage lives in `RiskCalculator`.** Fails the locality argument that motivated the proposal — the same Support-filter sum gets re-implemented in donor target-gap and donor surplus-Support calculations. Capacity coverage is a load-bearing primitive needed by three independent consumers; one definition or zero.
-- **Snapshot owns risk classification too.** Conflates per-month state (mappings + active flags) with per-application policy (`MinSupportFte`, `RecommendedSupportFte`). Risk thresholds change with ADR amendments; mapping state changes with seed regeneration. Different change vectors, different modules.
-- **Per-request scoped `ISnapshotProvider` with caching.** Adds DI plumbing whose only value is amortising duplicate loads inside a single chat turn. With ~3,144 mapping rows on local SQLite, duplicate loads are sub-millisecond. The wrapper today fails its own deletion test. Add only if a profile shows hot-spot pain.
-- **Bare entity references on the snapshot (`IReadOnlyList<Resource>`, `IReadOnlyList<Mapping>`).** Forces every consumer to recompute `AllocationPercent`, `AllocatedCost`, `IdleFte` from raw fields. The whole point was to stop scattering that arithmetic.
-- **Bundle the Group D split with this extraction.** The split-DataService-into-domain-reporters question (`ProductCostAttribution`, `ApplicationRiskReporter`, `ProductRiskReporter`, `DonorCandidateAlgorithm`) was real but separable. Splitting before extraction meant guessing at boundaries; splitting after (done in #42) meant the boundaries were visible because each method had shrunk. `DataService` now delegates all four Group D methods to those named classes.
+The snapshot owns: active-flag rule, cost rule (`monthly_rate × percent / 100`), per-resource allocation percent and idle FTE, per-mapping allocated cost, and capacity coverage per application. It does **not** own risk classification (`RiskCalculator`), dependency closures (`DependencyGraph`), max-wins risk aggregation, donor-tier orchestration, or product/project cost attribution.
 
 **Key constraints:**
-- The snapshot is the single source of truth for `capacity coverage`, `allocation_pct`, idle FTE, and per-resource / per-mapping cost. New tool methods that re-implement these must instead consume the snapshot.
+- Snapshot is the single source of truth for `capacity_coverage`, `allocation_pct`, idle FTE, and per-resource / per-mapping cost. New tool methods must consume the snapshot, not re-query.
 - `Resource.IsActiveIn(month)` is the single source of truth for the active-flag rule. `DataService.GetMonthFlag` was a duplicate and was removed in #41.
-- The public constructor `MonthlyAllocationSnapshot(month, activeResources, activeMappings)` is the test seam — snapshot tests build snapshots without a `DbContext`.
-- Migration proceeds in five slices: `GetCapacityByDivisionAsync` first (validation), then the small projection trio, then `GetApplicationsAsync` (validates `SupportCoverageOf`), then `GetCostByProductAsync`, then `GetDonorCandidatesAsync`. See `docs/build/monthly-allocation-snapshot.md`.
-- The `WebApplicationFactory` integration tests remain the regression net. Existing `DataServiceTests` continue to pass; their consolidation onto snapshot tests is a cleanup, not a slice gate.
+- Public constructor `MonthlyAllocationSnapshot(month, activeResources, activeMappings)` is the test seam — snapshot tests build snapshots without a `DbContext`.
+- `DataService` delegates all Group D methods (`ProductCostAttribution`, `ApplicationRiskReporter`, `ProductRiskReporter`, `DonorCandidateAlgorithm`) to those named classes.
+- See `docs/build/monthly-allocation-snapshot.md` for migration slices and test guidance.
 
 ---
 
 ## ADR 10: Projects are not risk-classified
 
-**Decision:** The Projects tab and the `get_project_allocation` tool report `project_allocation` (sum of `mapping.percent / 100` across active mappings to the project's activities, in FTE) and nothing else. Projects carry no `min_*_fte` / `recommended_*_fte` thresholds, no risk classification, and no badge. The AgentService system prompt explicitly forbids the LLM from describing a project as "under-resourced", "adequately staffed", or "at risk".
-
-**Why:** Application Support models steady-state operations (SLO/uptime-driven, ongoing) — capacity below `min_support_fte` is operationally dangerous in a way that's knowable from headcount alone. Projects model discretionary delivery work (deadline-driven, finite-duration) — whether a project is "adequately staffed" depends on its scope, target delivery date, and remaining work, none of which are in the data model. Importing the Application risk framing into Projects would force the tool to either invent thresholds or fabricate adequacy judgments the data cannot support.
-
-**Alternatives considered and rejected:**
-- **Per-project `target_fte` threshold + risk classification.** Would require schedule and scope data the model does not carry. The thresholds would have to be guessed or hand-curated and would rot as projects re-plan; that drift is worse than absence.
-- **Aggregate delivery-risk signal (e.g. "behind plan").** Same data gap. Without baseline and burndown, a derived signal would be cosmetic.
-- **Show projects in the Applications tab with a "Project" badge instead of a separate tab.** Conflates two distinct mental models (steady-state vs. delivery) under one risk vocabulary, which is exactly the failure mode this ADR exists to prevent.
+**Decision:** The Projects tab and `get_project_allocation` report `project_allocation` FTE only. Projects carry no `min_*_fte` / `recommended_*_fte` thresholds, no risk classification, and no badge. The AgentService system prompt explicitly forbids the LLM from describing a project as "under-resourced", "adequately staffed", or "at risk".
 
 **Key constraints:**
 - `MonthlyAllocationSnapshot.ProjectAllocationOf(projectId)` is the single source of truth for project allocation; parallels `SupportCoverageOf` but spans all activity types of the project.
 - The Projects tab renders a fill-only allocation bar — no min/recommended markers, no risk badge, no risk-derived sort.
-- `get_project_allocation` system-prompt guidance must forbid adequacy/risk language explicitly. Every other tool has thresholds to lean on; without that explicit forbid, the LLM will pattern-match to the Application playbook.
+- `get_project_allocation` system-prompt guidance must forbid adequacy/risk language explicitly.
 
 ---
 
@@ -142,50 +101,24 @@ The snapshot owns: the active-flag rule (resources contribute only when their mo
 
 **Decision:** When a well-formed sentence can be composed deterministically from a tool's data, the tool owns the sentence — LLM renders verbatim, never reconstructs from raw fields. Covers risk explanations, FTE/coverage headlines, donor-fix summaries, mapping-change bullets, dependent-product summaries, cross-divisional sign-off warnings, and future per-row narrative.
 
-**Why:** LLM composition from raw fields drifts (round-2 feedback: agent invented "brings AuthService to 4.3 FTE / small buffer" from three numeric fields + one buggy total). Two-tool stitching also lets independent computations of the same quantity disagree (e.g. "1.0 FTE gap" vs "1.3 FTE total"). Pre-rendering moves composition and consistency into testable C# strings.
-
-**Alternatives rejected:**
-
-- **Stricter system-prompt instructions.** Tried across issues #29, #30, #34 — each iteration fixed one failure and introduced another. Pre-rendering removes the composition step entirely.
-- **Single mega-tool returning one rendered response string.** Conflates retrieval with presentation; blocks reuse by REST endpoints and dashboards. Field-level pre-rendering keeps data shape useful.
-- **Render at the agent layer (post-tool, pre-LLM).** Moves the burden sideways without earning testability — the string would not appear in REST responses where the same need exists.
-
 **Key constraints:**
-
 - Every pre-rendered string has a snapshot test for at least one representative scenario.
-- Numeric-bearing prose has an invariant test asserting the embedded numbers match the source data (e.g. `round(sum(AllocationFte) × 100) == sum(DonablePercent)` for `FewestChangesCombinationSummary` totals).
-- Raw fields are retained when pre-rendered fields are added — `total_dependent_arr_usd` alongside `dependent_products_summary`, `current_coverage_fte` alongside `risk_reason`. Pre-rendered strings are additive for non-LLM consumers.
-- System-prompt instructs verbatim rendering and explicitly forbids reconstruction. Without the forbid the LLM pattern-matches to training-prior recomposition. Template: the issue #34 "render `summary_paragraph` verbatim" pattern.
+- Numeric-bearing prose has an invariant test asserting embedded numbers match source data.
+- Raw fields are retained when pre-rendered fields are added — pre-rendered strings are additive for non-LLM consumers.
+- System prompt instructs verbatim rendering and explicitly forbids reconstruction. Without the forbid the LLM pattern-matches to training-prior recomposition.
 - New tools are designed pre-render-first: ask "what sentences will the LLM render?" before defining the data shape.
-
-**Precedent:** issue #33 (`mapping_changes`), #34 (`summary_paragraph`), `docs/build/user-test-feedback-2.md` (round-2 extensions).
+- Precedent: issue #33 (`mapping_changes`), #34 (`summary_paragraph`), `docs/build/user-test-feedback-2.md`.
 
 ---
 
-## ADR 12: Demo auth toggle via GitHub Actions, not in-app UI
+## ADR 12: Demo auth toggle via GitHub Actions
 
-**Decision:** Toggling Easy Auth on/off for live demos is done by two `workflow_dispatch` GitHub Actions workflows (`demo-auth-off.yml`, `demo-auth-on.yml`), each one tap away in the GitHub mobile app. Workflows authenticate to Azure via OIDC using a service principal that holds a custom role with the minimum permissions (`Microsoft.App/containerApps/read`, `Microsoft.App/containerApps/authConfigs/read+write`), scoped to the single Container App. The "off" state uses `--unauthenticated-client-action AllowAnonymous` — Easy Auth and the Entra app registration stay configured; only anonymous behaviour changes.
-
-**Why:** The original ask was an in-app React toggle. That approach was rejected for four independent reasons: (1) the toggle is only as secure as the auth it controls — once auth is off, anyone reaching the URL can flip it; (2) it would require granting the Container App a Managed Identity with write access to its own auth config (extra blast radius); (3) it would add server- and client-side code paths whose only purpose is operational rather than domain; (4) recovery from a botched deploy is harder because the toggle UI itself can break.
-
-GitHub Actions delivers the same phone-friendly UX (~5 taps from the mobile app, ~20s end-to-end), keeps credentials out of phones and inside scoped GitHub Secrets, requires zero application code changes, and yields a free audit trail in the Actions tab.
-
-**Alternatives considered and rejected:**
-
-- **In-app React UI toggle.** Rejected for the four reasons above. Would have been justified only if non-developer users needed to toggle, or if a broader admin UI was already planned.
-- **Azure mobile app.** Plausibly simpler (no setup), but the Container App Authentication blade's mobile-portal behaviour is not reliably feature-complete. Worth verifying in 2 minutes before falling back to this approach; if it works in practice, this ADR is overkill for the use case. Retained the GH Actions path because it (a) is verifiable to work, (b) gives an audit trail, (c) is reproducible across maintainers.
-- **Azure Cloud Shell, bookmarked.** Works today with zero infrastructure changes. Rejected as the primary path because there is no audit trail, the on-phone typing experience is fragile during a live demo, and bookmarked one-liners are easy to lose between devices. Retained as the fallback if a workflow run fails mid-demo — both routes use the same `az` command, so no skill divergence.
-- **Single workflow with `workflow_dispatch` input** (e.g. `state: on|off`). Rejected for mobile UX: dropdown selection inside the GitHub mobile app is easy to misclick under demo stress. Two separately-named workflows turn each toggle into a single unambiguous tap.
-- **Built-in `Contributor` role on the Container App** instead of a custom role. Rejected: Contributor permits ingress/scale/secrets/delete on the resource, expanding the blast radius of a leaked OIDC token well beyond "flip auth". A custom role limited to auth read/write is the minimum that still lets the workflow succeed.
-- **Client secret in GitHub Secrets** instead of OIDC federated credentials. Rejected: long-lived secret, manual rotation, no per-run token scoping. OIDC adds one `az ad app federated-credential create` call to setup and removes the rotation burden permanently.
-- **`--enabled false`** as the "off" state. Rejected in favour of `AllowAnonymous`: re-enabling with `--enabled true` works but the auth config is more visibly "uninstalled", and signed-in users mid-demo stop receiving `X-MS-CLIENT-PRINCIPAL` headers. `AllowAnonymous` keeps everything wired and just relaxes the gate.
+**Decision:** Toggling Easy Auth on/off for live demos is done by two `workflow_dispatch` workflows (`demo-auth-off.yml`, `demo-auth-on.yml`). They authenticate via OIDC using a service principal with a custom role scoped to the single Container App (`Microsoft.App/containerApps/authConfigs/read+write` only). The "off" state uses `--unauthenticated-client-action AllowAnonymous` — Easy Auth and Entra registration stay configured; only anonymous behaviour changes.
 
 **Key constraints:**
-
-- The custom role's `AssignableScopes` is the single Container App resource ID — not the resource group or subscription. Widening it defeats the minimum-permission rationale.
-- The federated credential subject is `repo:samww/WorkforceMapper:ref:refs/heads/main`. Workflows that need to run from other branches require an additional federated credential; do not relax to a broader subject.
-- The two workflows share `concurrency.group: demo-auth-toggle` to serialise a stray double-tap.
-- Resource names (`workforce-mapper`, `rg-workforce-mapper`) are hardcoded in the workflows because they match the deploy defaults and there is only one environment. A second environment would require parameterising both workflows and `scripts/deploy.ps1` consistently.
-- Setup is implemented in `scripts/setup_demo_auth_toggle.ps1` and must remain idempotent on re-run (matching the pattern in `scripts/setup_auth.ps1`).
-
-See `docs/build/issue-58-demo-auth-toggle.md` for the full implementation spec.
+- Custom role `AssignableScopes` is the single Container App resource ID — not the resource group or subscription.
+- Federated credential subject is `repo:samww/WorkforceMapper:ref:refs/heads/main`. Additional branches require additional federated credentials; do not broaden the subject.
+- Both workflows share `concurrency.group: demo-auth-toggle` to serialise double-taps.
+- Resource names (`workforce-mapper`, `rg-workforce-mapper`) are hardcoded in workflows to match deploy defaults.
+- Setup is in `scripts/setup_demo_auth_toggle.ps1`; must remain idempotent on re-run.
+- See `docs/build/issue-58-demo-auth-toggle.md` for the full implementation spec.
