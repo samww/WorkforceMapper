@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ApplicationsView, { CoverageBar } from '../../pages/ApplicationsView';
 
@@ -230,5 +230,36 @@ describe('ApplicationsView month change', () => {
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
     expect(screen.getByText('CoreDataWarehouse')).toBeInTheDocument();
     expect(screen.queryByText('AuthService')).not.toBeInTheDocument();
+  });
+});
+
+function deferFetchByMonth(immediate: Record<string, unknown> = {}) {
+  const pending: Record<string, Array<(data: unknown) => void>> = {};
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+    const u = String(url);
+    const hit = Object.keys(immediate).find(k => u.includes(k));
+    if (hit) return Promise.resolve({ ok: true, json: () => Promise.resolve(immediate[hit]) } as Response);
+    const month = u.match(/month=([\d-]+)/)?.[1] ?? '';
+    return new Promise<Response>(resolve => {
+      (pending[month] ??= []).push(data => resolve({ ok: true, json: () => Promise.resolve(data) } as Response));
+    });
+  });
+  return async (month: string, data: unknown) => {
+    await act(async () => { (pending[month] ?? []).splice(0).forEach(r => r(data)); });
+  };
+}
+
+describe('ApplicationsView out-of-order responses', () => {
+  it('keeps the selected month when an earlier month responds last', async () => {
+    const release = deferFetchByMonth();
+    const { rerender } = render(<ApplicationsView month="2026-06" division="All" onSelectApp={() => {}} />);
+    rerender(<ApplicationsView month="2026-07" division="All" onSelectApp={() => {}} />);
+
+    await release('2026-07', [APPS[0]]);
+    await release('2026-06', [APPS[2]]);
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('AuthService')).toBeInTheDocument();
+    expect(screen.queryByText('CoreDataWarehouse')).not.toBeInTheDocument();
   });
 });

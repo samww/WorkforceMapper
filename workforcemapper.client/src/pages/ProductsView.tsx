@@ -69,12 +69,15 @@ export default function ProductsView({ month, division, onSelectProduct }: Props
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
+    let cancelled = false;
     fetch(`/api/products?month=${month}`)
       .then(r => r.json())
       .then((data: ProductRisk[]) => {
+        if (cancelled) return;
         setProducts(data);
         setLoadedMonth(month);
       });
+    return () => { cancelled = true; };
   }, [month]);
 
   function handleSort(col: ProductSortCol) {

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProjectsView from '../../pages/ProjectsView';
 
@@ -121,5 +121,36 @@ describe('ProjectsView month change', () => {
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
     expect(screen.getByText('P03 Charlie')).toBeInTheDocument();
     expect(screen.queryByText('P01 Alpha')).not.toBeInTheDocument();
+  });
+});
+
+function deferFetchByMonth(immediate: Record<string, unknown> = {}) {
+  const pending: Record<string, Array<(data: unknown) => void>> = {};
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+    const u = String(url);
+    const hit = Object.keys(immediate).find(k => u.includes(k));
+    if (hit) return Promise.resolve({ ok: true, json: () => Promise.resolve(immediate[hit]) } as Response);
+    const month = u.match(/month=([\d-]+)/)?.[1] ?? '';
+    return new Promise<Response>(resolve => {
+      (pending[month] ??= []).push(data => resolve({ ok: true, json: () => Promise.resolve(data) } as Response));
+    });
+  });
+  return async (month: string, data: unknown) => {
+    await act(async () => { (pending[month] ?? []).splice(0).forEach(r => r(data)); });
+  };
+}
+
+describe('ProjectsView out-of-order responses', () => {
+  it('keeps the selected month when an earlier month responds last', async () => {
+    const release = deferFetchByMonth();
+    const { rerender } = render(<ProjectsView month="2026-06" division="All" />);
+    rerender(<ProjectsView month="2026-07" division="All" />);
+
+    await release('2026-07', [PROJECTS[1]]);
+    await release('2026-06', [PROJECTS[0]]);
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('P01 Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('P03 Charlie')).not.toBeInTheDocument();
   });
 });

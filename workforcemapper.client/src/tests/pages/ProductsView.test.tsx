@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProductsView from '../../pages/ProductsView';
 
@@ -157,5 +157,36 @@ describe('ProductsView month change', () => {
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
     expect(screen.getByText('MediaMeasurement')).toBeInTheDocument();
     expect(screen.queryByText('DataLicensing')).not.toBeInTheDocument();
+  });
+});
+
+function deferFetchByMonth(immediate: Record<string, unknown> = {}) {
+  const pending: Record<string, Array<(data: unknown) => void>> = {};
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+    const u = String(url);
+    const hit = Object.keys(immediate).find(k => u.includes(k));
+    if (hit) return Promise.resolve({ ok: true, json: () => Promise.resolve(immediate[hit]) } as Response);
+    const month = u.match(/month=([\d-]+)/)?.[1] ?? '';
+    return new Promise<Response>(resolve => {
+      (pending[month] ??= []).push(data => resolve({ ok: true, json: () => Promise.resolve(data) } as Response));
+    });
+  });
+  return async (month: string, data: unknown) => {
+    await act(async () => { (pending[month] ?? []).splice(0).forEach(r => r(data)); });
+  };
+}
+
+describe('ProductsView out-of-order responses', () => {
+  it('keeps the selected month when an earlier month responds last', async () => {
+    const release = deferFetchByMonth();
+    const { rerender } = render(<ProductsView month="2026-06" division="All" onSelectProduct={() => {}} />);
+    rerender(<ProductsView month="2026-07" division="All" onSelectProduct={() => {}} />);
+
+    await release('2026-07', [PRODUCTS[0]]);
+    await release('2026-06', [PRODUCTS[1]]);
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('DataLicensing')).toBeInTheDocument();
+    expect(screen.queryByText('MediaMeasurement')).not.toBeInTheDocument();
   });
 });

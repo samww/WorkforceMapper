@@ -97,12 +97,15 @@ export default function ApplicationsView({ month, division, onSelectApp }: Props
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
+    let cancelled = false;
     fetch(`/api/applications?month=${month}`)
       .then(r => r.json())
       .then((data: ApplicationRisk[]) => {
+        if (cancelled) return;
         setApps(data);
         setLoadedMonth(month);
       });
+    return () => { cancelled = true; };
   }, [month]);
 
   function handleSort(col: AppSortCol) {
