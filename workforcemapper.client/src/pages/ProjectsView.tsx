@@ -69,12 +69,15 @@ export default function ProjectsView({ month, division }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
+    let cancelled = false;
     fetch(`/api/projects?month=${month}`)
       .then(r => r.json())
       .then((data: ProjectAllocation[]) => {
+        if (cancelled) return;
         setProjects(data);
         setLoadedMonth(month);
       });
+    return () => { cancelled = true; };
   }, [month]);
 
   function handleSort(col: ProjectSortCol) {

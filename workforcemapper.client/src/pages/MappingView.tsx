@@ -39,16 +39,19 @@ export default function MappingView({ month, division }: MappingViewProps) {
   useEffect(() => { refreshZeroMonths(); }, []);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       fetch(`/api/resources?month=${month}`).then(r => r.json()),
       fetch('/api/activities').then(r => r.json()),
     ]).then(([resourceData, activityData]: [Resource[], Activity[]]) => {
+      if (cancelled) return;
       setResources(resourceData);
       const projects = activityData.filter(a => a.activity_type === 'Project').sort((a, b) => a.id - b.id);
       const apps = activityData.filter(a => a.activity_type !== 'Project').sort((a, b) => a.name.localeCompare(b.name));
       setActivities([...projects, ...apps]);
       setLoadedMonth(month);
     });
+    return () => { cancelled = true; };
   }, [month]);
 
   const visible = resources.filter((r) => {
