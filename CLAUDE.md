@@ -21,6 +21,11 @@ Use `CONTEXT.md` glossary terms.
 
 Risk reach: `RiskReach` wraps `DependencyGraph` — owns product closure, products reached by an application, transitive dependent applications, and stable exposure ordering. Keep application risk classification in `RiskCalculator`; reporters own DTO/prose assembly only.
 
+## CI and Dependencies
+
+- CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`: client `npm run lint`, `npm test`, `npm run build`; root `npm test` (generator); `dotnet test`. Keep client lint at zero errors - it fails the build. Tests need no secrets.
+- Dependabot (`.github/dependabot.yml`) groups minor/patch and security updates into one weekly PR per ecosystem (npm across `/` and `/workforcemapper.client`, NuGet, GitHub Actions); major bumps arrive individually.
+
 ## Issue Management
 
 For triage / issue work only:

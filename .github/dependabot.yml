@@ -1,0 +1,43 @@
+version: 2
+
+# One PR per ecosystem per week for minor/patch bumps, and one per ecosystem
+# for security fixes. Major bumps still arrive individually so breaking
+# changes can be reviewed on their own.
+updates:
+  - package-ecosystem: npm
+    directories: ["/", "/workforcemapper.client"]
+    schedule:
+      interval: weekly
+    ignore:
+      # @types/node should track the Node runtime (Dockerfile), not the latest Node
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      npm:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      nuget-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      nuget:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
