@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProjectsView from '../../pages/ProjectsView';
 
@@ -94,5 +94,32 @@ describe('ProjectsView sort', () => {
     // Default: Name is active (asc)
     expect(screen.getByRole('button', { name: /name/i }).textContent).toMatch(/[▲▼]/);
     expect(screen.getByRole('button', { name: /allocation/i }).textContent).not.toMatch(/[▲▼]/);
+  });
+});
+
+describe('ProjectsView month change', () => {
+  it('shows the spinner and fetches the new month when month changes', async () => {
+    const fetchSpy = mockFetch();
+    const { rerender } = render(<ProjectsView month="2026-05" division="All" />);
+    await screen.findByText('P01 Alpha');
+
+    fetchSpy.mockImplementation(() => new Promise(() => {}));
+    rerender(<ProjectsView month="2026-06" division="All" />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenLastCalledWith('/api/projects?month=2026-06');
+  });
+
+  it('replaces the old month with the new month once it loads', async () => {
+    mockFetch();
+    const { rerender } = render(<ProjectsView month="2026-05" division="All" />);
+    await screen.findByText('P01 Alpha');
+
+    mockFetch([PROJECTS[0]]);
+    rerender(<ProjectsView month="2026-06" division="All" />);
+
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    expect(screen.getByText('P03 Charlie')).toBeInTheDocument();
+    expect(screen.queryByText('P01 Alpha')).not.toBeInTheDocument();
   });
 });

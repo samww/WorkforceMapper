@@ -148,7 +148,7 @@ describe('MappingView', () => {
 
   it('blocks submission client-side when resource is inactive', async () => {
     const inactiveResources = [{ ...RESOURCES[0], active: false }];
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url, opts) => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
       const u = String(url);
       if (u.includes('/api/resources')) return Promise.resolve({ ok: true, json: () => Promise.resolve(inactiveResources) } as Response);
       if (u.includes('/api/activities')) return Promise.resolve({ ok: true, json: () => Promise.resolve(ACTIVITIES) } as Response);
@@ -404,5 +404,32 @@ describe('MappingView', () => {
     expect(await within(bobCard).findByText(/already mapped/i)).toBeInTheDocument();
     const putCalls = fetchSpy.mock.calls.filter(([, opts]) => (opts as RequestInit)?.method === 'PUT');
     expect(putCalls).toHaveLength(0);
+  });
+});
+
+describe('MappingView month change', () => {
+  it('shows the spinner and fetches the new month when month changes', async () => {
+    const fetchSpy = mockFetch();
+    const { rerender } = render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    fetchSpy.mockImplementation(() => new Promise(() => {}));
+    rerender(<MappingView month="2026-06" division="All" />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledWith('/api/resources?month=2026-06');
+  });
+
+  it('replaces the old month with the new month once it loads', async () => {
+    mockFetch();
+    const { rerender } = render(<MappingView month="2026-05" division="All" />);
+    await screen.findByText('Alice Chen');
+
+    mockFetch([RESOURCES[1]]);
+    rerender(<MappingView month="2026-06" division="All" />);
+
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    expect(screen.getByText('Bob Smith')).toBeInTheDocument();
+    expect(screen.queryByText('Alice Chen')).not.toBeInTheDocument();
   });
 });

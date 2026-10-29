@@ -16,7 +16,8 @@ interface MappingViewProps {
 export default function MappingView({ month, division }: MappingViewProps) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const loading = loadedMonth !== month;
   const [unallocatedOnly, setUnallocatedOnly] = useState(false);
   const [, setZeroMonths] = useState<Set<string>>(new Set());
 
@@ -38,7 +39,6 @@ export default function MappingView({ month, division }: MappingViewProps) {
   useEffect(() => { refreshZeroMonths(); }, []);
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       fetch(`/api/resources?month=${month}`).then(r => r.json()),
       fetch('/api/activities').then(r => r.json()),
@@ -47,7 +47,7 @@ export default function MappingView({ month, division }: MappingViewProps) {
       const projects = activityData.filter(a => a.activity_type === 'Project').sort((a, b) => a.id - b.id);
       const apps = activityData.filter(a => a.activity_type !== 'Project').sort((a, b) => a.name.localeCompare(b.name));
       setActivities([...projects, ...apps]);
-      setLoading(false);
+      setLoadedMonth(month);
     });
   }, [month]);
 

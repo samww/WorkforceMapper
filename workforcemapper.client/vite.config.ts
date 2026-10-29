@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url';
 
 import { defineConfig } from 'vitest/config';
+import type { ProxyOptions } from 'vite';
 import plugin from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import fs from 'fs';
@@ -43,23 +44,25 @@ if (isDev) {
     const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
         env.ASPNETCORE_URLS ? env.ASPNETCORE_URLS.split(';')[0] : 'https://localhost:7023';
 
+    const apiProxy: ProxyOptions = {
+        target,
+        secure: false,
+        configure: (proxy) => {
+            setTimeout(() => {
+                proxy.removeAllListeners('error');
+                proxy.on('error', (err) => {
+                    const code = (err as NodeJS.ErrnoException).code;
+                    if (code !== 'ECONNREFUSED' && code !== 'ECONNRESET') {
+                        console.error('[vite] proxy error:', err);
+                    }
+                });
+            }, 0);
+        }
+    };
+
     serverConfig = {
         proxy: {
-            '^/api': {
-                target,
-                secure: false,
-                configure: (proxy: any) => {
-                    setTimeout(() => {
-                        proxy.removeAllListeners('error');
-                        proxy.on('error', (err: NodeJS.ErrnoException, _req: any, _res: any) => {
-                            const code = err.code;
-                            if (code !== 'ECONNREFUSED' && code !== 'ECONNRESET') {
-                                console.error('[vite] proxy error:', err);
-                            }
-                        });
-                    }, 0);
-                }
-            }
+            '^/api': apiProxy
         },
         port: parseInt(env.DEV_SERVER_PORT || '49549'),
         https: {

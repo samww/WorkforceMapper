@@ -91,17 +91,17 @@ function sortApps(apps: ApplicationRisk[], col: AppSortCol, dir: 'asc' | 'desc')
 
 export default function ApplicationsView({ month, division, onSelectApp }: Props) {
   const [apps, setApps] = useState<ApplicationRisk[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const loading = loadedMonth !== month;
   const [sortCol, setSortCol] = useState<AppSortCol>('risk');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
-    setLoading(true);
     fetch(`/api/applications?month=${month}`)
       .then(r => r.json())
       .then((data: ApplicationRisk[]) => {
         setApps(data);
-        setLoading(false);
+        setLoadedMonth(month);
       });
   }, [month]);
 
