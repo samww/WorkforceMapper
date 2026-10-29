@@ -44,7 +44,7 @@ az acr create `
     --output none
 Assert-AzSuccess 'acr create'
 
-# -- 2. Build image in ACR (cloud build — no local Docker needed) --------------
+# -- 2. Build image in ACR (cloud build - no local Docker needed) --------------
 $Tag   = (Get-Date -Format 'yyyyMMddHHmmss')
 $Image = "$AcrServer/${AppName}:$Tag"
 
@@ -54,16 +54,43 @@ $BuildContext = Join-Path $env:TEMP "wm-acr-$(Get-Date -Format 'yyyyMMddHHmmss')
 Write-Host "Staging build context -> $BuildContext"
 robocopy $RepoRoot $BuildContext /E /XD .vs .git .idea /NFL /NDL /NJH /NJS | Out-Null
 
+# Queue with --no-wait and poll: az's live log streaming drops out on Windows
+# and exits non-zero while the cloud build is still running. --no-wait prints
+# nothing on stdout; the run ID only appears in a stderr warning line.
 try {
-    Write-Host "Building image $Image ..."
-    az acr build `
+    Write-Host "Queueing build of $Image ..."
+    $ErrorActionPreference = 'Continue'
+    $BuildOutput = az acr build `
         --registry $AcrName `
         --resource-group $ResourceGroup `
         --image "${AppName}:$Tag" `
-        $BuildContext
+        --no-wait `
+        $BuildContext 2>&1 | ForEach-Object { "$_" }
+    $ErrorActionPreference = 'Stop'
     Assert-AzSuccess 'acr build'
 } finally {
+    $ErrorActionPreference = 'Stop'
     Remove-Item -Recurse -Force $BuildContext -ErrorAction SilentlyContinue
+}
+
+$RunId = ($BuildOutput | Select-String 'Queued a build with ID: (\S+)' |
+    Select-Object -First 1).Matches.Groups[1].Value
+if (-not $RunId) {
+    $BuildOutput | Write-Host
+    throw 'Could not find ACR run ID in az acr build output'
+}
+
+Write-Host "Waiting for ACR run $RunId ..."
+do {
+    Start-Sleep -Seconds 15
+    $RunStatus = az acr task show-run --registry $AcrName --run-id $RunId --query status -o tsv
+    Assert-AzSuccess 'acr task show-run'
+    Write-Host "  $RunStatus"
+} while ($RunStatus -in 'Queued', 'Started', 'Running')
+
+if ($RunStatus -ne 'Succeeded') {
+    az acr task logs --registry $AcrName --run-id $RunId
+    throw "ACR build run $RunId finished with status $RunStatus"
 }
 
 # -- 3. Get ACR admin credentials ---------------------------------------------
