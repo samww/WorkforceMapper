@@ -83,3 +83,29 @@ jobs:
 
       - name: Test
         run: dotnet test -p:ShouldRunNpmInstall=false
+
+  # Merges Dependabot patch/minor PRs once every CI job above has passed.
+  # Majors (including majors in grouped security PRs) stay open for review.
+  # GitHub Actions bumps are skipped: GITHUB_TOKEN cannot merge changes to
+  # workflow files.
+  auto-merge:
+    needs: [frontend, generator, backend]
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v3
+
+      - name: Merge patch and minor updates
+        if: >-
+          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+           steps.meta.outputs.update-type == 'version-update:semver-minor') &&
+          steps.meta.outputs.package-ecosystem != 'github_actions'
+        run: gh pr merge --rebase --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
