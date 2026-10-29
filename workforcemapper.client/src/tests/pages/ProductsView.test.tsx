@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProductsView from '../../pages/ProductsView';
 
@@ -130,5 +130,32 @@ describe('ProductsView sort', () => {
     await screen.findByText('Alpha');
     fireEvent.click(screen.getByRole('button', { name: /arr/i }));
     expect(screen.getByRole('button', { name: /arr/i }).closest('th')).toHaveAttribute('aria-sort', 'descending');
+  });
+});
+
+describe('ProductsView month change', () => {
+  it('shows the spinner and fetches the new month when month changes', async () => {
+    const fetchSpy = mockFetch();
+    const { rerender } = render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('DataLicensing');
+
+    fetchSpy.mockImplementation(() => new Promise(() => {}));
+    rerender(<ProductsView month="2026-06" division="All" onSelectProduct={() => {}} />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenLastCalledWith('/api/products?month=2026-06');
+  });
+
+  it('replaces the old month with the new month once it loads', async () => {
+    mockFetch();
+    const { rerender } = render(<ProductsView month="2026-05" division="All" onSelectProduct={() => {}} />);
+    await screen.findByText('DataLicensing');
+
+    mockFetch([PRODUCTS[1]]);
+    rerender(<ProductsView month="2026-06" division="All" onSelectProduct={() => {}} />);
+
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    expect(screen.getByText('MediaMeasurement')).toBeInTheDocument();
+    expect(screen.queryByText('DataLicensing')).not.toBeInTheDocument();
   });
 });

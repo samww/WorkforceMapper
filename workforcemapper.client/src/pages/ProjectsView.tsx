@@ -63,17 +63,17 @@ function sortProjects(projects: ProjectAllocation[], col: ProjectSortCol, dir: '
 
 export default function ProjectsView({ month, division }: Props) {
   const [projects, setProjects] = useState<ProjectAllocation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const loading = loadedMonth !== month;
   const [sortCol, setSortCol] = useState<ProjectSortCol>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
-    setLoading(true);
     fetch(`/api/projects?month=${month}`)
       .then(r => r.json())
       .then((data: ProjectAllocation[]) => {
         setProjects(data);
-        setLoading(false);
+        setLoadedMonth(month);
       });
   }, [month]);
 

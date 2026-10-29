@@ -63,17 +63,17 @@ function sortProducts(products: ProductRisk[], col: ProductSortCol, dir: 'asc' |
 
 export default function ProductsView({ month, division, onSelectProduct }: Props) {
   const [products, setProducts] = useState<ProductRisk[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const loading = loadedMonth !== month;
   const [sortCol, setSortCol] = useState<ProductSortCol>('risk');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
-    setLoading(true);
     fetch(`/api/products?month=${month}`)
       .then(r => r.json())
       .then((data: ProductRisk[]) => {
         setProducts(data);
-        setLoading(false);
+        setLoadedMonth(month);
       });
   }, [month]);
 

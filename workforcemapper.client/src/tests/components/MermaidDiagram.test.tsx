@@ -8,7 +8,7 @@ let mockSvg = '<svg>diagram</svg>';
 vi.mock('mermaid', () => ({
   default: {
     initialize: vi.fn(),
-    render: vi.fn().mockImplementation((_id: string, _def: string) => {
+    render: vi.fn().mockImplementation(() => {
       return new Promise<{ svg: string }>(resolve => {
         resolvers.push(() => resolve({ svg: mockSvg }));
       });
@@ -61,5 +61,21 @@ describe('MermaidDiagram', () => {
     const node = container.querySelector('g.node')!;
     fireEvent.click(node);
     expect(onNodeClick).toHaveBeenCalledWith('app5');
+  });
+
+  it('calls the latest onNodeClick after the prop changes without re-rendering the diagram', async () => {
+    mockSvg = '<svg><g class="node" id="mermaid-1234-abc-flowchart-app5-0"><text>AuthService</text></g></svg>';
+    const first = vi.fn();
+    const second = vi.fn();
+    const { container, rerender } = render(
+      <MermaidDiagram definition="graph TD" onNodeClick={first} />
+    );
+    await act(async () => { resolvers.forEach(r => r()); });
+
+    rerender(<MermaidDiagram definition="graph TD" onNodeClick={second} />);
+    fireEvent.click(container.querySelector('g.node')!);
+
+    expect(second).toHaveBeenCalledWith('app5');
+    expect(first).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ApplicationsView, { CoverageBar } from '../../pages/ApplicationsView';
 
@@ -203,5 +203,32 @@ describe('ApplicationsView sort', () => {
     fireEvent.click(screen.getByRole('button', { name: /name/i }));
     const nameBtn = screen.getByRole('button', { name: /name/i });
     expect(nameBtn.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+  });
+});
+
+describe('ApplicationsView month change', () => {
+  it('shows the spinner and fetches the new month when month changes', async () => {
+    const fetchSpy = mockFetch();
+    const { rerender } = render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('AuthService');
+
+    fetchSpy.mockImplementation(() => new Promise(() => {}));
+    rerender(<ApplicationsView month="2026-06" division="All" onSelectApp={() => {}} />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenLastCalledWith('/api/applications?month=2026-06');
+  });
+
+  it('replaces the old month with the new month once it loads', async () => {
+    mockFetch();
+    const { rerender } = render(<ApplicationsView month="2026-05" division="All" onSelectApp={() => {}} />);
+    await screen.findByText('AuthService');
+
+    mockFetch([APPS[2]]);
+    rerender(<ApplicationsView month="2026-06" division="All" onSelectApp={() => {}} />);
+
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    expect(screen.getByText('CoreDataWarehouse')).toBeInTheDocument();
+    expect(screen.queryByText('AuthService')).not.toBeInTheDocument();
   });
 });

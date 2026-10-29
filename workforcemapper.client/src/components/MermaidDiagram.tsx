@@ -11,7 +11,10 @@ interface Props {
 export default function MermaidDiagram({ definition, onNodeClick }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const onNodeClickRef = useRef(onNodeClick);
-  onNodeClickRef.current = onNodeClick;
+
+  useEffect(() => {
+    onNodeClickRef.current = onNodeClick;
+  }, [onNodeClick]);
 
   useEffect(() => {
     if (!ref.current) return;
