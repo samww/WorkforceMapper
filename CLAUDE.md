@@ -24,7 +24,7 @@ Risk reach: `RiskReach` wraps `DependencyGraph` — owns product closure, produc
 ## CI and Dependencies
 
 - CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`: client `npm run lint`, `npm test`, `npm run build`; root `npm test` (generator); `dotnet test`. Keep client lint at zero errors - it fails the build. Tests need no secrets.
-- Dependabot (`.github/dependabot.yml`) groups minor/patch and security updates into one weekly PR per ecosystem (npm across `/` and `/workforcemapper.client`, NuGet, GitHub Actions); major bumps arrive individually.
+- Dependabot (`.github/dependabot.yml`) groups minor/patch and security updates into one weekly PR per ecosystem (npm across `/` and `/workforcemapper.client`, NuGet, GitHub Actions); major bumps arrive individually. CI's `auto-merge` job rebase-merges Dependabot patch/minor PRs (npm, NuGet) once all CI jobs pass; majors and GitHub Actions bumps need a manual merge.
 
 ## Issue Management
 
