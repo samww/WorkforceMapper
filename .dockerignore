@@ -11,8 +11,12 @@
 **/*.suo
 **/*.md
 !README.md
-.env
-.env.*
+**/.env
+**/.env.*
+**/appsettings.Development.json
+**/*.db
+**/*.db-shm
+**/*.db-wal
 docker-compose*.yml
 scripts/
 docs/
