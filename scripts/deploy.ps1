@@ -8,8 +8,12 @@ $DotEnvPath = Join-Path $RepoRoot '.env'
 if (Test-Path $DotEnvPath) {
     Get-Content $DotEnvPath | Where-Object { $_ -match '^\s*([^#][^=]+)=(.*)$' } | ForEach-Object {
         $name, $value = ($_ -split '=', 2).Trim()
-        if (-not [System.Environment]::GetEnvironmentVariable($name)) {
+        $existing = [System.Environment]::GetEnvironmentVariable($name)
+        if (-not $existing) {
             [System.Environment]::SetEnvironmentVariable($name, $value)
+        } elseif ($name -eq 'ANTHROPIC_API_KEY' -and $existing -cne $value) {
+            # A stale key left in the shell must not silently replace the one in .env.
+            throw 'ANTHROPIC_API_KEY in this shell differs from .env. Run: Remove-Item Env:ANTHROPIC_API_KEY'
         }
     }
 }
@@ -143,13 +147,28 @@ if ($AppCount -gt 0) {
 az containerapp secret set `
     --name $AppName `
     --resource-group $ResourceGroup `
-    --secrets "anthropic-api-key=$AnthropicApiKey"
+    --secrets "anthropic-api-key=$AnthropicApiKey" `
+    --output none
+Assert-AzSuccess 'containerapp secret set'
 
 az containerapp update `
     --name $AppName `
     --resource-group $ResourceGroup `
     --set-env-vars "ANTHROPIC_API_KEY=secretref:anthropic-api-key" `
     --output none
+Assert-AzSuccess 'containerapp update'
+
+# A running revision keeps its old secret values until it restarts.
+$Revision = az containerapp show --name $AppName --resource-group $ResourceGroup --query "properties.latestRevisionName" -o tsv
+Assert-AzSuccess 'containerapp show'
+
+Write-Host "Restarting revision $Revision to load the secret ..."
+az containerapp revision restart `
+    --name $AppName `
+    --resource-group $ResourceGroup `
+    --revision $Revision `
+    --output none
+Assert-AzSuccess 'containerapp revision restart'
 
 Write-Host ""
 $Fqdn = az containerapp show --name $AppName --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" -o tsv

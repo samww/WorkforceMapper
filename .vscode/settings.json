@@ -1,0 +1,5 @@
+{
+  // This repo has no Python. Left on, the Python extension copies .env, including
+  // ANTHROPIC_API_KEY, into every integrated terminal and anything started from it.
+  "python.terminal.useEnvFile": false
+}
