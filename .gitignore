@@ -11,6 +11,7 @@
 
 # ASP.NET
 **/wwwroot/dist/
+WorkforceMapper.Server/wwwroot/
 
 # Node / Vite
 node_modules/
