@@ -27,6 +27,9 @@ appsettings.Development.json
 *.env
 *.env.local
 
+# Personal Claude Code permissions
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db
