@@ -23,12 +23,19 @@ if ($Existing.Count -gt 0) {
     $ClientId = $Existing[0].appId
     Write-Host "Reusing existing app registration '$RegName' (appId: $ClientId)"
 
+    # Add the current ReplyUri, keeping every redirect URI already registered
+    # (e.g. a custom-domain callback): --web-redirect-uris replaces the whole list.
+    # Runs before the secret reset, so a failed read stops the script with nothing changed.
+    $RedirectUris = @(az ad app show --id $ClientId --query "web.redirectUris" -o tsv)
+    if ($LASTEXITCODE -ne 0) { throw "Could not read redirect URIs for $ClientId" }
+    if ($RedirectUris -cnotcontains $ReplyUri) {
+        az ad app update --id $ClientId --web-redirect-uris ($RedirectUris + $ReplyUri)
+        if ($LASTEXITCODE -ne 0) { throw "Could not update redirect URIs for $ClientId" }
+    }
+
     # Always reset and capture a fresh secret
     $SecretObj    = az ad app credential reset --id $ClientId | ConvertFrom-Json
     $ClientSecret = $SecretObj.password
-
-    # Always update redirect URIs to include the current ReplyUri
-    az ad app update --id $ClientId --web-redirect-uris $ReplyUri
 } else {
     Write-Host "Creating app registration '$RegName' ..."
     $AppReg   = az ad app create --display-name $RegName --sign-in-audience AzureADMyOrg --web-redirect-uris $ReplyUri | ConvertFrom-Json
