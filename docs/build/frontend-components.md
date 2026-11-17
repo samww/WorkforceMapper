@@ -40,6 +40,10 @@ New reusable components go in `components/`; new top-level section screens go in
 
 The nav bar (`<header>`) and the filter bar (month/division dropdowns, `role="region" aria-label="Filter bar"`) share the same visual height. Neither uses `min-h-16`; both are sized by `py-2` outer padding plus their content. Nav bar buttons use `py-1` (not `py-2`) and carry no `min-h-11` constraint — the filter bar's natural select height sets the target row height for both.
 
+## Ask AI panel layout
+
+The shell root is `h-dvh`, not `h-screen`. iOS Safari resolves `100vh` to the large viewport (toolbar collapsed), which pushed the chat textarea below the visible area. The chat panel is an `<aside aria-label="Ask AI">`. It is `w-full` below `sm` and hides the main column (`hidden sm:flex`), and it is `w-[420px]` beside the main column at `sm` and up. Tapping a suggestion chip fills the textarea and focuses it synchronously within the tap (via `flushSync`), so iOS raises the keyboard and scrolls the field into view. The textarea is `text-base sm:text-sm` because iOS zooms into inputs under 16px.
+
 For the Applications screen mobile layout, the table remains a table. The `Division` header and cells use `hidden sm:table-cell`, and mobile cells use tighter horizontal padding while preserving desktop spacing. The global Division filter is the mobile way to work by division; there is no visible mobile sort control for the hidden Division column.
 
 ## DependencyGraph

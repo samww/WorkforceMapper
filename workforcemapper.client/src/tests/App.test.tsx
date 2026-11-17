@@ -69,6 +69,26 @@ describe('Ask AI button', () => {
     expect(screen.queryByRole('button', { name: /ask ai/i })).not.toBeInTheDocument();
   });
 
+  it('sizes the shell to the dynamic viewport so the chat input is not hidden under the iOS Safari toolbar', () => {
+    mockFetch();
+    const { container } = render(<App />);
+    const shell = container.firstElementChild;
+    expect(shell).toHaveClass('h-dvh');
+    expect(shell).not.toHaveClass('h-screen');
+  });
+
+  it('opens the chat panel full width on phones and hides the main column behind it', async () => {
+    mockFetch();
+    render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: /ask ai/i }));
+    const chatPanel = screen.getByRole('complementary', { name: /ask ai/i });
+    expect(chatPanel).toHaveClass('w-full');
+    expect(chatPanel).toHaveClass('sm:w-[420px]');
+    const mainColumn = screen.getByRole('banner').parentElement;
+    expect(mainColumn).toHaveClass('hidden');
+    expect(mainColumn).toHaveClass('sm:flex');
+  });
+
   it('reappears when the chat panel is closed via the close button', async () => {
     mockFetch();
     render(<App />);

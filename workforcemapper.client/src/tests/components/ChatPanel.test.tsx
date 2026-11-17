@@ -33,6 +33,23 @@ describe('ChatPanel', () => {
     );
   });
 
+  it('clicking a chip focuses the textarea with the cursor at the end so the question is visibly ready', async () => {
+    render(<ChatPanel month="2026-05" />);
+    await userEvent.click(
+      screen.getByRole('button', { name: /which division is most constrained/i })
+    );
+    const textbox = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(textbox).toHaveFocus();
+    expect(textbox.selectionStart).toBe(textbox.value.length);
+  });
+
+  it('uses a 16px textarea font on phones so iOS Safari does not zoom on focus', () => {
+    render(<ChatPanel month="2026-05" />);
+    const textbox = screen.getByRole('textbox');
+    expect(textbox).toHaveClass('text-base');
+    expect(textbox).toHaveClass('sm:text-sm');
+  });
+
   it('submitting a chip query POSTs the correct body to /api/chat', async () => {
     let capturedBody: string | undefined;
     vi.spyOn(globalThis, 'fetch').mockImplementation((_url, opts) => {

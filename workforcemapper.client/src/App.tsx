@@ -59,7 +59,7 @@ export default function App() {
   }, [mobileNavOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 sm:hidden">
           <button
@@ -101,7 +101,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <div className="flex-1 overflow-auto min-w-0 flex flex-col">
+      <div className={`flex-1 overflow-auto min-w-0 flex-col ${chatOpen ? 'hidden sm:flex' : 'flex'}`}>
         <header className="flex items-center gap-2 border-b border-gray-700 px-4 py-2">
           <button
             type="button"
@@ -230,12 +230,13 @@ export default function App() {
         </div>
       </div>
 
-      <div
+      <aside
+        aria-label="Ask AI"
         className={`flex-shrink-0 flex flex-col bg-gray-900 border-l border-gray-700 transition-all duration-300 overflow-hidden
-          ${chatOpen ? 'w-[420px]' : 'w-0'}`}
+          ${chatOpen ? 'w-full sm:w-[420px]' : 'w-0'}`}
       >
         <ChatPanel month={month} onClose={() => setChatOpen(false)} />
-      </div>
+      </aside>
     </div>
   );
 }

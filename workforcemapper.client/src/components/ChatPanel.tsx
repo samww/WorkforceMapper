@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import ToolCallIndicator from './ToolCallIndicator';
 
 const CHIPS = [
@@ -97,6 +98,17 @@ export default function ChatPanel({ month, onClose }: Props) {
   const [response, setResponse] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isToolCalling, setIsToolCalling] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus synchronously inside the tap handler: iOS Safari only raises the
+  // keyboard and scrolls the field into view for focus within a user gesture.
+  function pickChip(chip: string) {
+    flushSync(() => setQuery(chip));
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
 
   async function submit(q: string) {
     const trimmed = q.trim();
@@ -204,7 +216,7 @@ export default function ChatPanel({ month, onClose }: Props) {
             {CHIPS.map(chip => (
               <button
                 key={chip}
-                onClick={() => setQuery(chip)}
+                onClick={() => pickChip(chip)}
                 className="w-full text-left text-xs text-gray-300 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 transition-colors"
               >
                 {chip}
@@ -216,12 +228,13 @@ export default function ChatPanel({ month, onClose }: Props) {
 
       <div className="px-4 py-3 border-t border-gray-700 flex gap-2">
         <textarea
+          ref={inputRef}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask a question about workforce capacity…"
           rows={2}
-          className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-500"
+          className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-base sm:text-sm resize-none focus:outline-none focus:border-blue-500"
         />
         <button
           onClick={() => submit(query)}
