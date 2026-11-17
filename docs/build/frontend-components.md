@@ -42,7 +42,7 @@ The nav bar (`<header>`) and the filter bar (month/division dropdowns, `role="re
 
 ## Ask AI panel layout
 
-The shell root is `h-dvh`, not `h-screen`. iOS Safari resolves `100vh` to the large viewport (toolbar collapsed), which pushed the chat textarea below the visible area. The chat panel is an `<aside aria-label="Ask AI">`. It is `w-full` below `sm` and hides the main column (`hidden sm:flex`), and it is `w-[420px]` beside the main column at `sm` and up. Tapping a suggestion chip fills the textarea and focuses it synchronously within the tap (via `flushSync`), so iOS raises the keyboard and scrolls the field into view. The textarea is `text-base sm:text-sm` because iOS zooms into inputs under 16px.
+The shell root is `h-dvh`, not `h-screen`. iOS Safari resolves `100vh` to the large viewport (toolbar collapsed), which pushed the chat textarea below the visible area. The chat panel is an `<aside aria-label="Ask AI">`. It is `w-full` below `sm` and hides the main column (`hidden sm:flex`), and it is `w-[420px]` beside the main column at `sm` and up. Tapping a suggestion chip fills the textarea but does not focus it. Focusing would raise the iOS keyboard and pan the page, pushing the header and chips off screen. The textarea is `text-base sm:text-sm` because iOS zooms into inputs under 16px.
 
 For the Applications screen mobile layout, the table remains a table. The `Division` header and cells use `hidden sm:table-cell`, and mobile cells use tighter horizontal padding while preserving desktop spacing. The global Division filter is the mobile way to work by division; there is no visible mobile sort control for the hidden Division column.
 

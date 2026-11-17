@@ -1,5 +1,4 @@
-import { useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { useState } from 'react';
 import ToolCallIndicator from './ToolCallIndicator';
 
 const CHIPS = [
@@ -98,17 +97,6 @@ export default function ChatPanel({ month, onClose }: Props) {
   const [response, setResponse] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isToolCalling, setIsToolCalling] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Focus synchronously inside the tap handler: iOS Safari only raises the
-  // keyboard and scrolls the field into view for focus within a user gesture.
-  function pickChip(chip: string) {
-    flushSync(() => setQuery(chip));
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
-  }
 
   async function submit(q: string) {
     const trimmed = q.trim();
@@ -216,7 +204,8 @@ export default function ChatPanel({ month, onClose }: Props) {
             {CHIPS.map(chip => (
               <button
                 key={chip}
-                onClick={() => pickChip(chip)}
+                // Fill only; focusing would raise the iOS keyboard and pan the page.
+                onClick={() => setQuery(chip)}
                 className="w-full text-left text-xs text-gray-300 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 transition-colors"
               >
                 {chip}
@@ -228,7 +217,6 @@ export default function ChatPanel({ month, onClose }: Props) {
 
       <div className="px-4 py-3 border-t border-gray-700 flex gap-2">
         <textarea
-          ref={inputRef}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}

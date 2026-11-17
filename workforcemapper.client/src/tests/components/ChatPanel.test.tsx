@@ -33,14 +33,14 @@ describe('ChatPanel', () => {
     );
   });
 
-  it('clicking a chip focuses the textarea with the cursor at the end so the question is visibly ready', async () => {
+  it('clicking a chip does not focus the textarea, so iOS does not raise the keyboard and pan the page', async () => {
     render(<ChatPanel month="2026-05" />);
     await userEvent.click(
       screen.getByRole('button', { name: /which division is most constrained/i })
     );
-    const textbox = screen.getByRole('textbox') as HTMLTextAreaElement;
-    expect(textbox).toHaveFocus();
-    expect(textbox.selectionStart).toBe(textbox.value.length);
+    const textbox = screen.getByRole('textbox');
+    expect(textbox).toHaveValue('Which division is most constrained on capacity this month?');
+    expect(textbox).not.toHaveFocus();
   });
 
   it('uses a 16px textarea font on phones so iOS Safari does not zoom on focus', () => {
